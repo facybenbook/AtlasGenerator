@@ -7,9 +7,10 @@ public class TextureAtlasEditor : EditorWindow {
 
     private List<Texture2D> textures = new List<Texture2D>();
 
-    private RenderTexture resultTexture;
+    private RenderTexture resultTexture, previewTexture;
 
     private Vector2 scrollView = Vector2.zero;
+    private Vector2 scrollEffect = Vector2.zero;
 
     private Texture2D tempTexture;
 
@@ -24,6 +25,7 @@ public class TextureAtlasEditor : EditorWindow {
     private ExtraShaders extraShader = 0;
 
     private IAtlasGenEffect selectedEffect;
+    private List<IAtlasGenEffect> effects = new List<IAtlasGenEffect>();
 
     [Range(0f, 10f)]
     private float blurStrength = 2f;
@@ -46,94 +48,217 @@ public class TextureAtlasEditor : EditorWindow {
     void OnEnable()
     {
         this.titleContent = new GUIContent("Atlas Creator", "Texture Atlas Generator");
-        this.minSize = new Vector2(800f, 500f);
+        this.minSize = new Vector2(1024f, 512f);
         //this.maxSize = new Vector2(768.1f, 512.1f);
 
         resultTexture = new RenderTexture(8, 8, 0);
         resultTexture.Create();
 
+        previewTexture = new RenderTexture(8, 8, 0);
+        previewTexture.Create();
+
         blitMat = new Material(Shader.Find(shaderName));
         blurMat = new Material(Shader.Find(blurShader));
     }
 
-    void OnGUI()
+    private void Update()
     {
-        this.minSize = new Vector2(this.minSize.x, this.position.width * (5f/8f));
+        if (addedTexture)
+        {
+            textures.Add(addedTexture);
+            addedTexture = null;
+            Repaint();
+            UpdateTexture();
+        }
+        
+        if (addedEffect)
+        {
+            effects.Add(addedEffect);
+            addedEffect = null;
+            Repaint();
+            UpdateTexture();
+        }
 
-        EditorGUI.BeginChangeCheck();
+        if (clear)
+        {
+            textures.Clear();
+            clear = false;
+            Repaint();
+            UpdateTexture();
+        }
 
-        GUILayout.BeginArea(new Rect(0f, 0f, 96f, this.position.height));
-        scrollView = GUILayout.BeginScrollView(scrollView);
+        if (delTexture != null)
+        {
+            textures.RemoveAt(delTexture.Value);
+            delTexture = null;
+            Repaint();
+            UpdateTexture();
+        }
+
+        if (delEffect != null)
+        {
+            effects.RemoveAt(delEffect.Value);
+            delEffect = null;
+            Repaint();
+            UpdateTexture();
+        }
+    }
+    
+    Texture2D addedTexture;
+    IAtlasGenEffect addedEffect;
+    bool clear = false;
+    int? delTexture;
+    int? delEffect;
+
+    void DrawTextureBox(int textureID, float width, float height)
+    {
+        GUILayout.BeginHorizontal(EditorStyles.miniButtonRight, GUILayout.Width(width), GUILayout.Height(height));
+        GUILayout.BeginVertical();
+        GUILayout.Space(3f);
+        textures[textureID] = (Texture2D)EditorGUILayout.ObjectField(textures[textureID], typeof(Texture2D), false, GUILayout.Width(height - 8f), GUILayout.Height(height - 8f));
+        GUILayout.EndVertical();
+        GUILayout.BeginVertical(GUILayout.Width(width - height - 16f));
+        GUILayout.Space(3f);
+        GUILayout.Label(!textures[textureID] ? "" : textures[textureID].name, GUILayout.Width(width - height - 16f));
+        GUILayout.Label(!textures[textureID] ? "" : "From: " + textures[textureID].width + "x" + textures[textureID].height, GUILayout.Width(width - height - 16f));
+        GUILayout.Label(!textures[textureID] ? "" : "To: " + RoundToBinary(textures[textureID].width) + "x" + RoundToBinary(textures[textureID].width), GUILayout.Width(width - height - 16f));
+        GUILayout.Space(-1f);
+        Color lOld = GUI.backgroundColor;
+        GUI.backgroundColor = Color.red;
+        if (GUILayout.Button("Remove", GUILayout.Width(width - height - 16f)))
+        {
+            delTexture = textureID;
+        }
+        GUI.backgroundColor = lOld;
+        GUILayout.EndVertical();
+        GUILayout.EndHorizontal();
+    }
+
+    void DrawTexturePanel(Rect rect)
+    {
+        GUILayout.BeginArea(new Rect(0f, 0f, rect.width, this.position.height - 24f));
+        scrollView = GUILayout.BeginScrollView(scrollView, false, true);
 
         for (int t = 0; t < textures.Count; t++)
         {
-            textures[t] = (Texture2D)EditorGUILayout.ObjectField(textures[t], typeof(Texture2D), false, GUILayout.Width(72f), GUILayout.Height(72f));
-        }
-
-        if (GUILayout.Button("+", GUILayout.Width(72f), GUILayout.Height(72f)))
-        {
-            EditorGUIUtility.ShowObjectPicker<Texture2D>(tempTexture, false, "", 10);
-            return;
+            DrawTextureBox(t, rect.width - 20f, 80f);
         }
 
         GUILayout.EndScrollView();
-        GUILayout.EndArea();
 
-        if (Event.current.commandName == "ObjectSelectorClosed")
+        GUILayout.EndArea();
+        GUILayout.BeginArea(new Rect(0f, this.position.height - 24f, rect.width + 4f, 24f));
+
+        GUILayout.BeginHorizontal();
+
+        if (GUILayout.Button("Add", EditorStyles.miniButtonMid, GUILayout.Width((rect.width / 2f) + 2f), GUILayout.Height(24f)))
         {
-            if (EditorGUIUtility.GetObjectPickerControlID() == 10)
-            {
-                textures.Add((Texture2D)EditorGUIUtility.GetObjectPickerObject());
-                Repaint();
-                return;
-            }
+            EditorGUIUtility.ShowObjectPicker<Texture2D>(tempTexture, false, "", 10);
         }
 
-        for (int t = textures.Count - 1; t >= 0 ; t--)
+        if (GUILayout.Button("Clear", EditorStyles.miniButtonRight, GUILayout.Width((rect.width / 2f) + 2f), GUILayout.Height(24f)))
+        {
+            clear = true;
+        }
+
+        GUILayout.EndHorizontal();
+
+        GUILayout.EndArea();
+
+        for (int t = textures.Count - 1; t >= 0; t--)
         {
             if (textures[t] == null)
             {
                 textures.RemoveAt(t);
             }
         }
+    }
+    
+    void AddEffect(object obj)
+    {
+        MonoScript script = (MonoScript)obj;
 
-        GUILayout.BeginArea(new Rect(104f, 8f, (this.position.width - 96f) * 0.4f, this.position.height));
+        addedEffect = (IAtlasGenEffect)IAtlasGenEffect.CreateInstance(script.GetClass());
+    }
 
-        resultSize = (int)(TextureSizes)EditorGUILayout.EnumPopup("Texture max Size", (TextureSizes)resultSize);
+    void DrawSettingsPanel(Rect rect)
+    {
+
+        GUILayout.BeginArea(rect);
+
+        resultSize = (int)(TextureSizes)EditorGUILayout.EnumPopup("Result Size", (TextureSizes)resultSize);
         interpolationMethod = (InterpolatingMethods)EditorGUILayout.EnumPopup("Interpolating Method", interpolationMethod);
-        extraShader = (ExtraShaders)EditorGUILayout.EnumMaskPopup("Extra Shaders", extraShader);
+        //extraShader = (ExtraShaders)EditorGUILayout.EnumMaskPopup("Extra Shaders", extraShader);
 
         EditorGUILayout.Space();
 
         if (GUILayout.Button("Add Effect"))
         {
-            EditorGUIUtility.ShowObjectPicker<IAtlasGenEffect>(selectedEffect, false, "", 11);
-            return;
-            //selectedEffect
+            MonoScript[] scripts = (MonoScript[])Resources.FindObjectsOfTypeAll(typeof(MonoScript));
+
+            List<MonoScript> result = new List<MonoScript>();
+
+            foreach (MonoScript m in scripts)
+            {
+                if (m.GetType() != typeof(Shader) && m.GetClass() != null && m.GetClass().IsSubclassOf(typeof(IAtlasGenEffect)))
+                {
+                    result.Add(m);
+                }
+            }
+
+            GenericMenu menu = new GenericMenu();
+            
+            for (int m = 0; m < result.Count; m++)
+            {
+                menu.AddItem(new GUIContent(result[m].name.Replace('_', ' ')), false, AddEffect, result[m]);
+            }
+
+            menu.ShowAsContext();
         }
 
+        GUILayout.Space(-2f);
+        GUILayout.BeginHorizontal();
+        GUILayout.Space(8f);
+        scrollEffect = GUILayout.BeginScrollView(scrollEffect, false, true, GUILayout.Width(rect.width - 16f), GUILayout.Height(rect.height - 128f));
+        for (int e = 0; e < effects.Count; e++)
+        {
+            GUILayout.BeginVertical(EditorStyles.miniButton);
+            Editor effectInspector = Editor.CreateEditor(effects[e]);
+            effectInspector.OnInspectorGUI();
+
+            Color lOld = GUI.backgroundColor;
+            GUI.backgroundColor = Color.red;
+            if (GUILayout.Button("Remove"))
+            {
+                delEffect = e;
+            }
+            GUI.backgroundColor = lOld;
+
+            GUILayout.EndVertical();
+        }
+        GUILayout.EndScrollView();
+        GUILayout.EndHorizontal();
+        /*
         if ((extraShader & ExtraShaders.Blur) == ExtraShaders.Blur)
         {
             blurStrength = EditorGUILayout.Slider("Blur Strength", blurStrength, 0f, 10f);
-        }
+        }*/
 
         GUILayout.EndArea();
+    }
 
-        if (EditorGUI.EndChangeCheck())
+    void DrawResultPanel(Rect rect)
+    {
+        GUILayout.BeginArea(rect);
+        
+        EditorGUI.DrawPreviewTexture(new Rect(16f, 0f, rect.width - 32f, rect.width - 32f), previewTexture);
+
+        if (GUI.Button(new Rect(16f, rect.width - 24f, rect.width - 32f, 24f), "Update"))
         {
             UpdateTexture();
         }
 
-        GUILayout.BeginArea(new Rect(96f + (this.position.width - 96f) * 0.4f, 8f, (this.position.width - 96f) * 0.6f, this.position.height));
-
-        EditorGUI.DrawPreviewTexture(new Rect(16f, 0f, (this.position.width - 96f) * 0.6f - 32f, (this.position.width - 96f) * 0.6f - 32f), resultTexture);
-
-        if (GUI.Button(new Rect(16f, (this.position.width - 96f) * 0.6f - 24f, (this.position.width - 96f) * 0.6f - 32f, 32f), "Update"))
-        {
-            UpdateTexture();
-        }
-
-        if (GUI.Button(new Rect(16f, (this.position.width - 96f) * 0.6f - 24f + 40f, (this.position.width - 96f) * 0.6f - 32f, 32f), "Save As"))
+        if (GUI.Button(new Rect(16f, rect.width + 4f, rect.width - 32f, 24f), "Save As"))
         {
             if (resultTexture != null)
             {
@@ -154,11 +279,59 @@ public class TextureAtlasEditor : EditorWindow {
                         path, bytes);
 
                     AssetDatabase.Refresh();
+
+                    TextureImporter textureImporter = (TextureImporter)TextureImporter.GetAtPath(path);
+                    textureImporter.alphaIsTransparency = true;
+                    textureImporter.mipmapEnabled = false;
+                    textureImporter.wrapMode = TextureWrapMode.Clamp;
+                    textureImporter.SaveAndReimport();
                 }
             }
         }
 
         GUILayout.EndArea();
+    }
+
+    void OnGUI()
+    {
+
+        this.minSize = new Vector2(this.minSize.x, this.position.width * (5f/8f));
+
+        EditorGUI.BeginChangeCheck();
+
+        float height = this.position.height;
+        float width = this.position.width - 264f;
+
+        DrawTexturePanel(new Rect(0f, 0f, 256f, height));
+
+        DrawSettingsPanel(new Rect(264f, 8f, width * 0.4f, height));
+
+        if (EditorGUI.EndChangeCheck())
+        {
+            UpdateTexture();
+        }
+
+        DrawResultPanel(new Rect(264f + width * 0.4f, 8f, width * 0.6f, height));
+
+        if (Event.current.commandName == "ObjectSelectorClosed")
+        {
+            if (EditorGUIUtility.GetObjectPickerControlID() == 10)
+            {
+                addedTexture = (Texture2D)EditorGUIUtility.GetObjectPickerObject();
+            } else if (EditorGUIUtility.GetObjectPickerControlID() == 11)
+            {
+                if (EditorGUIUtility.GetObjectPickerObject() == null)
+                {
+                    return;
+                }
+
+                addedEffect = (IAtlasGenEffect)IAtlasGenEffect.CreateInstance(EditorGUIUtility.GetObjectPickerObject().GetType());
+                if (effects.Contains(addedEffect))
+                {
+                    addedEffect = null;
+                }
+            }
+        }
     }
 
     void UpdateTexture()
@@ -201,6 +374,26 @@ public class TextureAtlasEditor : EditorWindow {
                 case InterpolatingMethods.Unique: lTextures[t].filterMode = textures[t].filterMode; break;
             }
         }
+
+        List<KeyValuePair<int, List<int>>> list = new List<KeyValuePair<int, List<int>>>();
+
+        foreach(KeyValuePair<int, List<int>> pair in lSizes)
+        {
+            list.Add(pair);
+        }
+
+        list.Sort((x, y) => y.Key.CompareTo(x.Key));
+
+        lSizes.Clear();
+
+        foreach (KeyValuePair<int, List<int>> pair in list)
+        {
+            lSizes.Add(pair.Key, pair.Value);
+        }
+
+        //Fill with objects of CustomClass...
+
+        //list.Sort((x, y) => x.CustomIntVariable.ComareTo(y.CustomIntVariable));
 
         //Debug.Log(lMinTexSize + " < " + lMaxTexSize);
 
@@ -322,6 +515,14 @@ public class TextureAtlasEditor : EditorWindow {
         {
             DestroyImmediate(lTextures[t]);
         }
+
+
+        Material lAlphaGrid = new Material(Shader.Find("Hidden/AlphaGridShader"));
+        Graphics.Blit(resultTexture, previewTexture, lAlphaGrid);
+
+        //////////////////////////////Mesh mesh = new Mesh();
+        //////////////////////////////mesh.SetUVs()
+        //TODO: MESH VISE
     }
 
     int RoundToBinary(int value)
@@ -375,7 +576,13 @@ public class TextureAtlasEditor : EditorWindow {
 
         Graphics.Blit(texture, lTempRenderTarget);
         
-        if ((extraShader & ExtraShaders.Blur) == ExtraShaders.Blur)
+        for(int e = 0; e < effects.Count; e++)
+        {
+            Graphics.Blit(lTempRenderTarget, lTempBackBuffer);
+            effects[e].BlitEffect(lTempBackBuffer, lTempRenderTarget);
+        }
+
+        /*if ((extraShader & ExtraShaders.Blur) == ExtraShaders.Blur)
         {
             blurMat.SetVector("_Parameter", new Vector4(blurStrength, blurStrength, 0f, 0f));
 
@@ -385,7 +592,7 @@ public class TextureAtlasEditor : EditorWindow {
             Graphics.Blit(lTempBackBuffer, lTempRenderTarget);
             Graphics.Blit(lTempRenderTarget, lTempBackBuffer, blurMat, 2);
             Graphics.Blit(lTempBackBuffer, lTempRenderTarget);
-        }
+        }*/
 
         Graphics.Blit(lTempRenderTarget, resultTexture, blitMat);
 
@@ -396,8 +603,21 @@ public class TextureAtlasEditor : EditorWindow {
 
     void SetResultTexture(int width, int height)
     {
-        resultTexture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
+        RenderTexture.active = null;
+        resultTexture.DiscardContents();
+        resultTexture.Release();
+        previewTexture.Release();
 
+        resultTexture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
+        resultTexture.DiscardContents();
+        previewTexture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
+        previewTexture.DiscardContents();
+
+        Material lMat = new Material(Shader.Find("Hidden/ClearShader"));
+        RenderTexture lTempClear = RenderTexture.GetTemporary(width, height, 0);
+        Graphics.Blit(lTempClear, resultTexture, lMat);
+        lTempClear.Release();
+        
         /*function Start ()
 {
     mat = new Material(
