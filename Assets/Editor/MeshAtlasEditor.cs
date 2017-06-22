@@ -8,10 +8,10 @@ public class MeshAtlasEditor : EditorWindow
     MeshRenderer renderer;
 
     enum PreferredSizes { Smallest, Biggest };
-    PreferredSizes preferredSize;
+    PreferredSizes preferredSize = PreferredSizes.Biggest;
 
     private enum TextureSizes { _16 = 16, _32 = 32, _64 = 64, _128 = 128, _256 = 256, _512 = 512, _1024 = 1024, _2048 = 2048, _4096 = 4096, _8192 = 8192 };
-    private int resultSize = 512;
+    private int resultSize = 1024;
 
     string saveName;
 
