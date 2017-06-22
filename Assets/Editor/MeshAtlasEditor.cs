@@ -114,6 +114,10 @@ public class MeshAtlasEditor : EditorWindow
                     Vector2 lB = meshdata.mesh.uv[meshdata.triangles[u][t + 1]] * lSize;
                     Vector2 lC = meshdata.mesh.uv[meshdata.triangles[u][t + 2]] * lSize;
 
+                    lA.y = lSize - lA.y;
+                    lB.y = lSize - lB.y;
+                    lC.y = lSize - lC.y;
+
                     Handles.DrawLine(lA, lB);
                     Handles.DrawLine(lB, lC);
                     Handles.DrawLine(lC, lA);
