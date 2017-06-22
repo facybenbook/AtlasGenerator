@@ -97,6 +97,32 @@ public class MeshAtlasEditor : EditorWindow
 
         debugScroll = GUI.BeginScrollView(new Rect(0f, 0f, lCenter.x - 4f, pos.height), debugScroll, new Rect(0f, 0f, lCenter.x - 20f, debugHeight), false, true);
         debugHeight = 4f;
+        if (meshdata.triangles != null)
+        {
+            GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("UVs"), EditorStyles.boldLabel);
+            debugHeight += 20f;
+            float lSize = 128f;
+            for (int u = 0; u < meshdata.triangles.Length; u++)
+            {
+                
+                //Handles.BeginGUI();
+                GUILayout.BeginArea(new Rect(4f + u * 136f, debugHeight, lSize, lSize));
+                EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
+                for (int t = 0; t < meshdata.triangles[u].Count - 2; t+=3)
+                {
+                    Vector2 lA = meshdata.mesh.uv[meshdata.triangles[u][t]] * lSize;
+                    Vector2 lB = meshdata.mesh.uv[meshdata.triangles[u][t + 1]] * lSize;
+                    Vector2 lC = meshdata.mesh.uv[meshdata.triangles[u][t + 2]] * lSize;
+
+                    Handles.DrawLine(lA, lB);
+                    Handles.DrawLine(lB, lC);
+                    Handles.DrawLine(lC, lA);
+                }
+                GUILayout.EndArea();
+                //Handles.EndGUI();
+            }
+            debugHeight += lSize + 8f;
+        }
         if (meshdata.textures != null)
         {
             GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("Textures"), EditorStyles.boldLabel);
