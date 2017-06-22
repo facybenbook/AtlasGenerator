@@ -253,7 +253,7 @@ public static class TextureOperator {
 
         Graphics.Blit(lTempRenderTarget, target, blitMat);
 
-        lTempBackBuffer.Release();
+        lTempBackBuffer.Release(); 
         lTempRenderTarget.Release();
 
     }
