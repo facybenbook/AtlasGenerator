@@ -273,4 +273,161 @@ public static class TextureOperator {
         lTempClear.Release();
     }
 
+    public static Dictionary<int,Rect> CalculateIDPos(List<IDSqaure> squares)
+    {
+        if (squares.Count <= 0)
+        {
+            return new Dictionary<int, Rect>();
+        }
+
+        Dictionary<int, List<int>> lSizes = new Dictionary<int, List<int>>();
+
+        int lMaxTexSize = 0, lMinTexSize = int.MaxValue;
+
+        for (int t = 0; t < squares.Count; t++)
+        {
+            int lSize = (int)RoundToBinary(squares[t].size);
+            if (!lSizes.ContainsKey(lSize))
+            {
+                lSizes.Add(lSize, new List<int>());
+            }
+            lSizes[lSize].Add(t);
+
+            if (lMaxTexSize < squares[t].size)
+            {
+                lMaxTexSize = squares[t].size;
+            }
+            if (lMinTexSize > squares[t].size)
+            {
+                lMinTexSize = squares[t].size;
+            }
+        }
+
+        List<KeyValuePair<int, List<int>>> list = new List<KeyValuePair<int, List<int>>>();
+
+        foreach (KeyValuePair<int, List<int>> pair in lSizes)
+        {
+            list.Add(pair);
+        }
+
+        list.Sort((x, y) => y.Key.CompareTo(x.Key));
+
+        lSizes.Clear();
+
+        foreach (KeyValuePair<int, List<int>> pair in list)
+        {
+            lSizes.Add(pair.Key, pair.Value);
+        }
+
+        string lContents = "";
+
+        foreach (KeyValuePair<int, List<int>> pair in lSizes)
+        {
+            lContents += pair.Value.Count + "x" + pair.Key + ", ";
+        }
+
+        List<IDSqaure> subIDSquares = new List<IDSqaure>();
+        List<int> subTexIDs = lSizes[lMaxTexSize];
+        for (int i = 0; i < subTexIDs.Count; i++)
+        {
+            subIDSquares.Add(squares[subTexIDs[i]]);
+        }
+
+        List<IDSquareLayouter> subSquares = new List<IDSquareLayouter>();
+
+        foreach (KeyValuePair<int, List<int>> pair in lSizes)
+        {
+            if (pair.Key < lMaxTexSize)
+            {
+                if (subSquares.Count == 0)
+                {
+                    subSquares.Add(new IDSquareLayouter(lMaxTexSize));
+                }
+
+                IDSquareLayouter lSquare = subSquares[subSquares.Count - 1];
+
+                for (int t = 0; t < pair.Value.Count; t++)
+                {
+                    bool lAdded = lSquare.AddSquare(squares[pair.Value[t]]);
+
+                    if (!lAdded)
+                    {
+                        subSquares.Add(new IDSquareLayouter(lMaxTexSize));
+                        lSquare = subSquares[subSquares.Count - 1];
+
+                        lSquare.AddSquare(squares[pair.Value[t]]);
+                    }
+                }
+            }
+        }
+
+
+        int squareAmount = CeilToBinary(subIDSquares.Count + subIDSquares.Count);
+        squareAmount = CeilToSqrtable(subIDSquares.Count + subIDSquares.Count);
+
+        /////////////////////////////Debug.Log(subTextures.Count + " Textures : Sqaures " + subSquares.Count);
+        /////////////////////////////Debug.Log(squareAmount);
+        Dictionary<int, Rect> lResult = new Dictionary<int, Rect>();
+
+        if (squareAmount == 1)
+        {
+            lResult.Add(squares[0].id, new Rect(new Vector2(0f, 0f), new Vector2(1f , 1f)));
+            return lResult;
+        }
+        else
+        if (squareAmount == 2)
+        {
+            if (squares.Count == 2)
+            {
+                lResult.Add(squares[0].id, new Rect(new Vector2(0f, 0f), new Vector2(0.5f , 1f)));
+                lResult.Add(squares[1].id, new Rect(new Vector2(0.5f, 0f), new Vector2(0.5f , 1f)));
+                return lResult;
+            }
+            else
+            {
+                int t = 0;
+                for (t = 0; t < squares.Count; t++)
+                {
+                    lResult.Add(squares[t].id, new Rect(new Vector4(t * 0.5f, 0f), new Vector2(0.5f, 1f)));
+                }
+                for (int s = 0; s < subSquares.Count; s++)
+                {
+                    List<IDSqaure> lTexRects = subSquares[s].GetFittedIDSquares(new Rect(t * 0.5f, 0f, 0.5f, 1f));
+                    foreach (IDSqaure cSquare in lTexRects)
+                    {
+                        lResult.Add(cSquare.id, new Rect(cSquare.pos, new Vector2(cSquare.size, cSquare.size)));
+                    }
+                }
+                return lResult;
+            }
+        }
+        else
+        {
+            int tableSize = (int)Mathf.Sqrt(squareAmount);
+            int lData = 0;
+
+            for (int tx = 0; tx < tableSize; tx++)
+            {
+                for (int ty = 0; ty < tableSize; ty++)
+                {
+                    if (lData < squares.Count)
+                    {
+                        lResult.Add(squares[lData].id, new Rect((float)tx / (float)tableSize, (float)ty / (float)tableSize, 1f / tableSize, 1f / tableSize));
+                    }
+                    else if ((lData - (squares.Count)) < subSquares.Count)
+                    {
+                        int lDataSquares = lData - (squares.Count);
+                        List<IDSqaure> lTexRects = subSquares[lDataSquares].GetFittedIDSquares(new Rect((float)tx / (float)tableSize, (float)ty / (float)tableSize, 1f / tableSize, 1f / tableSize));
+                        foreach (IDSqaure cSquare in lTexRects)
+                        {
+                            lResult.Add(cSquare.id, new Rect(cSquare.pos, new Vector2(cSquare.size, cSquare.size)));
+                        }
+                    }
+
+                    lData++;
+                }
+            }
+            return lResult;
+        }
+    }
 }

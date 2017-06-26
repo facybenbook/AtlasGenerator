@@ -28,4 +28,15 @@ public struct MeshAtlasData {
     public bool resized;
     public Dictionary<string, Texture> textureAtlas;
     public Dictionary<string, Texture>[] observedAtlas;
+
+    //Process Mesh
+    public Mesh resultMesh;
+    public Material[] resultMaterials;
+
+    //Finalize
+    public string folderRoot;
+    public bool savedMesh;
+    public bool savedTextures;
+    public bool savedMaterials;
+
 }
