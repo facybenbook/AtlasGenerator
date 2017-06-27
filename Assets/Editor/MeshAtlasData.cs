@@ -29,14 +29,26 @@ public struct MeshAtlasData {
     public Dictionary<string, Texture> textureAtlas;
     public Dictionary<string, Texture>[] observedAtlas;
 
+    public Dictionary<string, bool> textureIsNormalMap;
+    public Dictionary<string, float> normalMapStrength;
+
     //Process Mesh
     public Mesh resultMesh;
     public Material[] resultMaterials;
 
     //Finalize
     public string folderRoot;
+    public string fileEnding;
     public bool savedMesh;
+    public string meshPath;
     public bool savedTextures;
+    public Dictionary<string, string> texturePaths;
+    public bool postdefinedTexSettings;
     public bool savedMaterials;
+    public Dictionary<int, string> materialPaths;
+    public bool rebindTextures;
+    public bool foundSaveMode;
+    public bool updateOriginal;
+    public bool finished;
 
 }

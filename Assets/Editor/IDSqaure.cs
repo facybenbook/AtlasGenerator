@@ -4,8 +4,8 @@ using UnityEngine;
 
 public class IDSqaure {
 
-    private int mySize;
-    public int size
+    private float mySize;
+    public float size
     {
         get
         {
@@ -31,7 +31,7 @@ public class IDSqaure {
         }
     }
 
-    public IDSqaure(Vector2 aPos, int aSize, int aID)
+    public IDSqaure(Vector2 aPos, float aSize, int aID)
     {
         myPos = aPos;
         mySize = aSize;

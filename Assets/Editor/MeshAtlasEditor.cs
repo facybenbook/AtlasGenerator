@@ -13,7 +13,8 @@ public class MeshAtlasEditor : EditorWindow
     private enum TextureSizes { _16 = 16, _32 = 32, _64 = 64, _128 = 128, _256 = 256, _512 = 512, _1024 = 1024, _2048 = 2048, _4096 = 4096, _8192 = 8192 };
     private int resultSize = 1024;
 
-    string saveName;
+    private enum SaveOptions { Replace, GenerateNew };
+    private SaveOptions saveOption = SaveOptions.Replace;
 
     bool debugDetails;
 
@@ -26,6 +27,8 @@ public class MeshAtlasEditor : EditorWindow
     string status = "";
     Vector2 statusScroll = Vector2.zero;
 
+    string currentState = "";
+
     Vector2 debugScroll = Vector2.zero;
     float debugHeight = 200f;
 
@@ -35,6 +38,8 @@ public class MeshAtlasEditor : EditorWindow
     float process = 0f;
 
     IEnumerator routine;
+
+    GUIStyle bigCenteredLabel;
 
     [MenuItem("Window/Texture Mesh Atlas Creator")]
     static void Init()
@@ -47,13 +52,26 @@ public class MeshAtlasEditor : EditorWindow
     {
         this.titleContent = new GUIContent("Atlas Mesh Creator", "Texture Atlas Mesh Generator");
         this.minSize = new Vector2(1024f, 512f);
+
+        if (bigCenteredLabel == null)
+        {
+            bigCenteredLabel = new GUIStyle(EditorStyles.boldLabel);
+            bigCenteredLabel.alignment = TextAnchor.MiddleCenter;
+            bigCenteredLabel.fontSize = 32;
+        }
     }
 
     void OnGUI()
     {
         SettingsArea(new Rect(0f, 0f, this.position.width, 64f));
         EditorGUI.ProgressBar(new Rect(0f, 64f, this.position.width, 16f), process / 100f, "Process " + (int)Mathf.Round(process) + "%");
-        DebugArea(new Rect(0f, 80f, this.position.width, this.position.height - 80f));
+        if (debugDetails)
+        {
+            DebugArea(new Rect(0f, 80f, this.position.width, this.position.height - 80f));
+        } else
+        {
+            GUI.Label(new Rect(0f, 80f, this.position.width, this.position.height - 80f), new GUIContent(currentState), bigCenteredLabel);
+        }
     }
 
     void SettingsArea(Rect pos)
@@ -62,14 +80,14 @@ public class MeshAtlasEditor : EditorWindow
         float lLastY = 4f;
         GUILayout.BeginArea(pos, EditorStyles.helpBox);
 
-        renderer = (MeshRenderer)EditorGUI.ObjectField(new Rect(4f, lLastY, lCenter.x - 8f, 16f), new GUIContent("Mesh Renderer"), renderer, typeof(MeshRenderer), true);
+        renderer = (MeshRenderer)EditorGUI.ObjectField(new Rect(4f, lLastY, lCenter.x - 8f, 16f), new GUIContent("Mesh Renderer"), renderer, typeof(MeshRenderer), false);
         lLastY += 20f;
 
         preferredSize = (PreferredSizes)EditorGUI.EnumPopup(new Rect(4f, lLastY, (lCenter.x / 2f) - 4f, 16f), new GUIContent("Preferred Size"), preferredSize);
         resultSize = (int)(TextureSizes)EditorGUI.EnumPopup(new Rect((lCenter.x / 2f) + 4f, lLastY, (lCenter.x / 2f) - 8f, 16f), new GUIContent("Result Size"), (TextureSizes)resultSize);
         lLastY += 20f;
 
-        saveName = EditorGUI.TextField(new Rect(4f, lLastY, lCenter.x - 8f, 16f), new GUIContent("Save Name"), saveName);
+        saveOption = (SaveOptions)EditorGUI.EnumPopup(new Rect(4f, lLastY, (lCenter.x / 2f) - 4f, 16f), new GUIContent("Save Option"), saveOption);
         lLastY += 20f;
 
         lLastY = 4f;
@@ -310,7 +328,6 @@ public class MeshAtlasEditor : EditorWindow
 
     void UpdateMesh()
     {
-        //TODO: Update the meshdata
         routine = UpdateStepManager();
     }
 
@@ -329,6 +346,7 @@ public class MeshAtlasEditor : EditorWindow
 
         AddStatus("");
         AddStatus("Collect Mesh-Data");
+        currentState = "Collect Mesh-Data";
         AddStatus("------------------------");
         float collectedMeshData = 0f;
         while(collectedMeshData < 1f)
@@ -341,6 +359,7 @@ public class MeshAtlasEditor : EditorWindow
 
         AddStatus("");
         AddStatus("Collect Material-Data");
+        currentState = "Collect Material-Data";
         AddStatus("------------------------");
         float collectedMaterialData = 0f;
         while (collectedMaterialData < 1f)
@@ -354,6 +373,7 @@ public class MeshAtlasEditor : EditorWindow
 
         AddStatus("");
         AddStatus("Process Texture-Data");
+        currentState = "Process Texture-Data";
         AddStatus("------------------------");
         float processedTextureData = 0f;
         while (processedTextureData < 1f)
@@ -367,6 +387,7 @@ public class MeshAtlasEditor : EditorWindow
 
         AddStatus("");
         AddStatus("Process Mesh-Data");
+        currentState = "Process Mesh-Data";
         AddStatus("------------------------");
         float processedMeshData = 0f;
         while (processedMeshData < 1f)
@@ -380,6 +401,7 @@ public class MeshAtlasEditor : EditorWindow
 
         AddStatus("");
         AddStatus("Finalize Data");
+        currentState = "Finalize Data";
         AddStatus("------------------------");
         float finalizedData = 0f;
         while (finalizedData < 1f)
@@ -390,7 +412,7 @@ public class MeshAtlasEditor : EditorWindow
         }
         oldProcess = process;
 
-        //process = 100f;
+        currentState = "Finished!";
 
         yield return null;
     }
@@ -441,7 +463,7 @@ public class MeshAtlasEditor : EditorWindow
 
     float CollectMaterialInformation()
     {
-        float lSteps = 9f;
+        float lSteps = 10f;
 
         if (meshdata.materials == null)
         {
@@ -649,6 +671,85 @@ public class MeshAtlasEditor : EditorWindow
             AddStatus("Collected Observe Texures: " + collectedObserveTextures);
             return 9f / lSteps;
         }
+        if (meshdata.textureIsNormalMap == null)
+        {
+            meshdata.textureIsNormalMap = new Dictionary<string, bool>();
+            meshdata.normalMapStrength = new Dictionary<string, float>();
+
+            for (int p = 0; p < meshdata.setProperties.Count; p++)
+            {
+                bool lConvert = false;
+                for (int m = 0; m < meshdata.materials.Length; m++)
+                {
+                    float lStrength = 0f;
+                    string lPath = AssetDatabase.GetAssetPath(meshdata.materials[m].GetTexture(meshdata.setProperties[p]));
+                    if (lPath != "")
+                    {
+                        TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
+                        if (lImporter.textureType == TextureImporterType.NormalMap)
+                        {
+                            lConvert = true;
+                        }
+                        if (lImporter.convertToNormalmap)
+                        {
+                            if (lImporter.heightmapScale > lStrength)
+                            {
+                                lStrength = lImporter.heightmapScale;
+                            }
+                        }
+                    }
+
+                    Texture lTexture = meshdata.textures[m][meshdata.setProperties[p]];
+                    if (lTexture != null)
+                    {
+                        if (!meshdata.normalMapStrength.ContainsKey(lTexture.name))
+                        {
+                            meshdata.normalMapStrength.Add(lTexture.name, lStrength);
+                        }
+                    }
+                }
+                meshdata.textureIsNormalMap.Add(meshdata.setProperties[p], lConvert);
+            }
+
+            for (int m = 0; m < meshdata.materials.Length; m++)
+            {
+                for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
+                {
+                    bool lConvert = false;
+                    float lStrength = 0f;
+
+                    string lPath = AssetDatabase.GetAssetPath(meshdata.materials[m].GetTexture(meshdata.nicFilledProperties[m][p]));
+                    if (lPath != "")
+                    {
+                        TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
+                        if (lImporter.textureType == TextureImporterType.NormalMap)
+                        {
+                            lConvert = true;
+                        }
+                        if (lImporter.convertToNormalmap)
+                        {
+                            if (lImporter.heightmapScale > lStrength)
+                            {
+                                lStrength = lImporter.heightmapScale;
+                            }
+                        }
+                    }
+                    
+                    Texture lTexture = meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]];
+                    if (lTexture != null)
+                    {
+                        if (!meshdata.normalMapStrength.ContainsKey(lTexture.name))
+                        {
+                            meshdata.normalMapStrength.Add(lTexture.name, lStrength);
+                        }
+                    }
+                    meshdata.textureIsNormalMap.Add(meshdata.nicFilledProperties[m][p], lConvert);
+                }
+            }
+
+            AddStatus("Checked for Normal Maps!");
+            return 10f / lSteps;
+        }
 
         return 1f;
     }
@@ -719,11 +820,14 @@ public class MeshAtlasEditor : EditorWindow
                     if (lTexture != null)
                     {
                         Texture2D lNewTexture = new Texture2D(lSize, lSize);
+                        
                         Graphics.Blit(lTexture, lRenderTexture);
+
                         RenderTexture.active = lRenderTexture;
                         lNewTexture.ReadPixels(new Rect(0, 0, lRenderTexture.width, lRenderTexture.height), 0, 0);
                         lNewTexture.Apply();
                         meshdata.textures[m][meshdata.setProperties[p]] = lNewTexture;
+
                     } else
                     {
                         meshdata.textures[m][meshdata.setProperties[p]] = new Texture2D(lSize, lSize);
@@ -735,7 +839,9 @@ public class MeshAtlasEditor : EditorWindow
                     if (lTexture != null)
                     {
                         Texture2D lNewTexture = new Texture2D(lSize, lSize);
+                        
                         Graphics.Blit(lTexture, lRenderTexture);
+
                         RenderTexture.active = lRenderTexture;
                         lNewTexture.ReadPixels(new Rect(0, 0, lRenderTexture.width, lRenderTexture.height), 0, 0);
                         lNewTexture.Apply();
@@ -761,7 +867,9 @@ public class MeshAtlasEditor : EditorWindow
                 }
                 resultTexture = new RenderTexture(resultSize, resultSize, 0);
                 previewTexture = new RenderTexture(resultSize, resultSize, 0);
-                TextureOperator.UpdateTexture(lTextures, resultSize, ref resultTexture, ref previewTexture, TextureOperator.InterpolatingMethods.Unique, new List<IAtlasGenEffect>());
+                
+                List<IAtlasGenEffect> lEffects = new List<IAtlasGenEffect>();
+                TextureOperator.UpdateTexture(lTextures, resultSize, ref resultTexture, ref previewTexture, TextureOperator.InterpolatingMethods.Unique, lEffects);
 
                 Texture2D lNewTexture = new Texture2D(resultSize, resultSize);
                 RenderTexture.active = resultTexture;
@@ -794,6 +902,8 @@ public class MeshAtlasEditor : EditorWindow
                     }
                     resultTexture = new RenderTexture(resultSize, resultSize, 0);
                     previewTexture = new RenderTexture(resultSize, resultSize, 0);
+
+                    List<IAtlasGenEffect> lEffects = new List<IAtlasGenEffect>();
                     TextureOperator.UpdateTexture(lTextures, resultSize, ref resultTexture, ref previewTexture, TextureOperator.InterpolatingMethods.Unique, new List<IAtlasGenEffect>());
 
                     Texture2D lNewTexture = new Texture2D(resultSize, resultSize);
@@ -839,14 +949,13 @@ public class MeshAtlasEditor : EditorWindow
 
             for (int u = 0; u < meshdata.triangles.Length; u++)
             {
+                Rect lRect = lPos[u];
                 for (int t = 0; t < meshdata.triangles[u].Count - 2; t += 3)
                 {
                     Vector2 lA = meshdata.mesh.uv[meshdata.triangles[u][t]];
                     Vector2 lB = meshdata.mesh.uv[meshdata.triangles[u][t + 1]];
                     Vector2 lC = meshdata.mesh.uv[meshdata.triangles[u][t + 2]];
-
-                    Rect lRect = lPos[u];
-
+                    
                     lA.y = 1f - lA.y;
                     lB.y = 1f - lB.y;
                     lC.y = 1f - lC.y;
@@ -906,10 +1015,24 @@ public class MeshAtlasEditor : EditorWindow
 
     float FinalizeAndSave()
     {
-        float lSteps = 4f;
+        float lSteps = 8f;
         if (meshdata.folderRoot == null)
         {
-            string guid = AssetDatabase.CreateFolder("Assets", renderer.name + "_Data");
+            string lRendererPath = AssetDatabase.GetAssetPath(renderer);
+            
+            meshdata.fileEnding = lRendererPath.Replace(renderer.name, "");
+            string[] lParts = meshdata.fileEnding.Split('/');
+            meshdata.fileEnding = lParts[lParts.Length - 1].Replace(".","");
+
+            string lTargetPath = lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + renderer.name + "_AtlasData";
+            bool lGiven = AssetDatabase.IsValidFolder(lTargetPath);
+
+            if (saveOption == SaveOptions.Replace && lGiven)
+            {
+                AssetDatabase.DeleteAsset(lTargetPath);
+            }
+
+            string guid = AssetDatabase.CreateFolder(lRendererPath, renderer.name + "_AtlasData");
             meshdata.folderRoot = AssetDatabase.GUIDToAssetPath(guid);
             AssetDatabase.CreateFolder(meshdata.folderRoot, "Atlas_Textures");
             AssetDatabase.CreateFolder(meshdata.folderRoot, "Atlas_Materials");
@@ -919,18 +1042,22 @@ public class MeshAtlasEditor : EditorWindow
         }
         if (!meshdata.savedMesh)
         {
-            AssetDatabase.CreateAsset(meshdata.resultMesh, meshdata.folderRoot + "/" + meshdata.mesh.name + "_AtlasMesh.Asset");
+            string lPath = meshdata.folderRoot + "/" + meshdata.mesh.name + "_AtlasMesh.Asset";
+            AssetDatabase.CreateAsset(meshdata.resultMesh, lPath);
             AssetDatabase.Refresh();
+            meshdata.meshPath = lPath;
             meshdata.savedMesh = true;
             AddStatus("Saved Mesh!");
             return 2f / lSteps;
         }
         if (!meshdata.savedTextures)
         {
+            meshdata.texturePaths = new Dictionary<string, string>();
+
             for (int p = 0; p < meshdata.setProperties.Count; p++)
             {
                 Texture2D lTexture = meshdata.textureAtlas[meshdata.setProperties[p]] as Texture2D;
-                string lPath = meshdata.folderRoot + "/Atlas_Textures/" + meshdata.setProperties[p] + ".png";
+                string lPath = meshdata.folderRoot + "/Atlas_Textures/" + meshdata.setProperties[p] + "_AtlasTex.png";
 
                 byte[] bytes;
                 bytes = lTexture.EncodeToPNG();
@@ -945,6 +1072,8 @@ public class MeshAtlasEditor : EditorWindow
                 textureImporter.mipmapEnabled = false;
                 textureImporter.wrapMode = TextureWrapMode.Clamp;
                 textureImporter.SaveAndReimport();
+
+                meshdata.texturePaths.Add(meshdata.setProperties[p], lPath);
             }
 
             for (int m = 0; m < meshdata.materials.Length; m++)
@@ -952,7 +1081,7 @@ public class MeshAtlasEditor : EditorWindow
                 for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
                 {
                     Texture2D lTexture = meshdata.observedAtlas[m][meshdata.nicFilledProperties[m][p]] as Texture2D;
-                    string lPath = meshdata.folderRoot + "/Atlas_Textures/" + meshdata.nicFilledProperties[m][p] + ".png";
+                    string lPath = meshdata.folderRoot + "/Atlas_Textures/" + meshdata.nicFilledProperties[m][p] + "_AtlasTex.png";
 
                     byte[] bytes;
                     bytes = lTexture.EncodeToPNG();
@@ -967,6 +1096,8 @@ public class MeshAtlasEditor : EditorWindow
                     textureImporter.mipmapEnabled = false;
                     textureImporter.wrapMode = TextureWrapMode.Clamp;
                     textureImporter.SaveAndReimport();
+
+                    meshdata.texturePaths.Add(meshdata.nicFilledProperties[m][p], lPath);
                 }
             }
 
@@ -976,18 +1107,157 @@ public class MeshAtlasEditor : EditorWindow
             AddStatus("Saved Textures!");
             return 3f / lSteps;
         }
+        if (!meshdata.postdefinedTexSettings)
+        {
+
+            for (int p = 0; p < meshdata.setProperties.Count; p++)
+            {
+                TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(meshdata.texturePaths[meshdata.setProperties[p]]);
+                if (meshdata.textureIsNormalMap[meshdata.setProperties[p]])
+                {
+                    lImporter.textureType = TextureImporterType.NormalMap;
+                }
+                lImporter.SaveAndReimport();
+            }
+
+            for (int m = 0; m < meshdata.materials.Length; m++)
+            {
+                for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
+                {
+                    TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(meshdata.texturePaths[meshdata.nicFilledProperties[m][p]]);
+                    if (meshdata.textureIsNormalMap[meshdata.nicFilledProperties[m][p]])
+                    {
+                      lImporter.textureType = TextureImporterType.NormalMap;
+                    }
+                    lImporter.SaveAndReimport();
+                }
+            }
+
+            AddStatus("Postdefined Texture Settings!");
+            meshdata.postdefinedTexSettings = true;
+            return 4f / lSteps;
+        }
         if (!meshdata.savedMaterials)
         {
+            meshdata.materialPaths = new Dictionary<int, string>();
             for (int m = 0; m < meshdata.resultMaterials.Length; m++)
             {
-                AssetDatabase.CreateAsset(meshdata.resultMaterials[m], meshdata.folderRoot + "/Atlas_Materials/" + meshdata.resultMaterials[m].name + ".Asset");
+                string lPath = meshdata.folderRoot + "/Atlas_Materials/" + meshdata.resultMaterials[m].name.Replace("(Clone)", "") + "_AtlasMat.Asset";
+                AssetDatabase.CreateAsset(meshdata.resultMaterials[m], lPath);
+                meshdata.materialPaths.Add(m, lPath);
             }
             AssetDatabase.Refresh();
             meshdata.savedMaterials = true;
             AddStatus("Saved Materials!");
-            return 4f / lSteps;
+            return 5f / lSteps;
         }
-        //TODO: Rebind Textures to Materials
+        if (!meshdata.rebindTextures)
+        {
+            for (int m = 0; m < meshdata.materials.Length; m++)
+            {
+                meshdata.resultMaterials[m] = Object.Instantiate(meshdata.materials[m]) as Material;
+
+                for (int p = 0; p < meshdata.setProperties.Count; p++)
+                {
+                    Texture lTexture = (Texture)AssetDatabase.LoadMainAssetAtPath(meshdata.texturePaths[meshdata.setProperties[p]]);
+                    Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
+                    lMaterial.SetTexture(meshdata.setProperties[p], lTexture);
+                    AssetDatabase.Refresh();
+                }
+
+                for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
+                {
+                    Texture lTexture = (Texture)AssetDatabase.LoadMainAssetAtPath(meshdata.texturePaths[meshdata.nicFilledProperties[m][p]]);
+                    Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
+                    lMaterial.SetTexture(meshdata.nicFilledProperties[m][p], lTexture);
+                    AssetDatabase.Refresh();
+                }
+            }
+
+            meshdata.rebindTextures = true;
+            AddStatus("Rebound Textures!");
+            return 6f / lSteps;
+        }
+        if (!meshdata.foundSaveMode)
+        {
+            AddStatus("Found Type: " + meshdata.fileEnding);
+
+            switch (saveOption)
+            {
+                case SaveOptions.Replace: if (meshdata.fileEnding == "prefab")
+                    {
+                        meshdata.updateOriginal = true;
+                        AddStatus("  ->   Original Asset will be updated");
+                    } else
+                    {
+                        AddStatus("  ->   Cannot Update a Model Importer!");
+                        AddStatus("         ->   New Prefab will be generated");
+                    }
+                    break;
+                case SaveOptions.GenerateNew:
+                    AddStatus("  ->   New Prefab will be generated");
+                    break;
+            }
+
+            meshdata.foundSaveMode = true;
+            return 7f / lSteps;
+        }
+        if (!meshdata.finished)
+        {
+            if (meshdata.updateOriginal)
+            {
+                Material[] lMats = new Material[meshdata.resultMaterials.Length];
+                for (int m = 0; m < meshdata.resultMaterials.Length; m++)
+                {
+                    Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
+                    lMats[m] = lMaterial;
+                }
+                renderer.sharedMaterials = lMats;
+                meshdata.filter.sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath);
+                AssetDatabase.Refresh();
+            } else
+            {
+                GameObject lGO = new GameObject(renderer.name + "_AtlasVersion");
+                MeshFilter lFilter = lGO.AddComponent<MeshFilter>();
+                MeshRenderer lRenderer = lGO.AddComponent<MeshRenderer>();
+
+                Material[] lMats = new Material[meshdata.resultMaterials.Length];
+                for (int m = 0; m < meshdata.resultMaterials.Length; m++)
+                {
+                    Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
+                    lMats[m] = lMaterial;
+                }
+                lRenderer.sharedMaterials = lMats;
+                lFilter.sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath);
+
+                string lRendererPath = AssetDatabase.GetAssetPath(renderer);
+
+
+                GameObject lObj = (GameObject)AssetDatabase.LoadMainAssetAtPath(lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab");
+                if (lObj == null)
+                {
+                    PrefabUtility.CreatePrefab(lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab", lGO, ReplacePrefabOptions.Default);
+                } else
+                {
+                    if (saveOption == SaveOptions.GenerateNew)
+                    {
+                        string newPath = AssetDatabase.GenerateUniqueAssetPath(lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab");
+
+                        PrefabUtility.CreatePrefab(newPath, lGO, ReplacePrefabOptions.Default);
+                    }
+                    else
+                    {
+                        lObj.GetComponent<MeshRenderer>().sharedMaterials = lMats;
+                        lObj.GetComponent<MeshFilter>().sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath);
+                    }
+                }
+                AssetDatabase.Refresh();
+
+                DestroyImmediate(lGO);
+            }
+            meshdata.finished = true;
+            return 8f / lSteps;
+        }
         //TODO: Generate Prefab
         return 1f;
     }

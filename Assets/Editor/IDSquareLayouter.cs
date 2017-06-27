@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class IDSquareLayouter : MonoBehaviour {
+public class IDSquareLayouter {
 
     private List<IDSqaure> squares = new List<IDSqaure>();
 
@@ -73,9 +73,11 @@ public class IDSquareLayouter : MonoBehaviour {
         return oldValue;
     }
 
-    public List<IDSqaure> GetFittedIDSquares(Rect pos)
+    public Dictionary<int, Rect> GetFittedIDSquares(Rect pos)
     {
-        List<IDSqaure> lSquares = new List<IDSqaure>();
+        Dictionary<int, Rect> lSquares = new Dictionary<int, Rect>();
+        int subIDs = 0;
+        int subS = 0;
         for (int x = 0; x < 2; x++)
         {
             for (int y = 0; y < 2; y++)
@@ -83,17 +85,18 @@ public class IDSquareLayouter : MonoBehaviour {
                 Rect lSubRect = new Rect(pos.x + (x * (pos.width / 2f)), pos.y + (y * (pos.height / 2f)), pos.width / 2f, pos.height / 2f);
                 if (subIDSquares[x, y] != null)
                 {
-                    IDSqaure lIDSquare = new IDSqaure(lSubRect.position, (int)lSubRect.width, subIDSquares[x, y].id);
-                    lSquares.Add(subIDSquares[x, y]);
+                    lSquares.Add(subIDSquares[x, y].id, lSubRect);
+                    subIDs++;
                 }
                 else if (subSquares[x, y] != null)
                 {
-                    List<IDSqaure> lSubSquares = new List<IDSqaure>();
+                    subS++;
+                    Dictionary<int, Rect> lSubSquares = new Dictionary<int, Rect>();
                     lSubSquares = subSquares[x, y].GetFittedIDSquares(lSubRect);
 
-                    foreach (IDSqaure subSquare in lSubSquares)
+                    foreach (KeyValuePair<int, Rect> subSquare in lSubSquares)
                     {
-                        lSquares.Add(subSquare);
+                        lSquares.Add(subSquare.Key, subSquare.Value);
                     }
                 }
             }
