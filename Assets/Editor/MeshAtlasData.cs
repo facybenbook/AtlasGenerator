@@ -22,6 +22,7 @@ public struct MeshAtlasData {
 
     public Dictionary<string, Texture>[] textures;
     public Dictionary<string, Texture>[] observeTextures;
+    public Dictionary<string, string>[] oldTexturePaths;
 
     //Process Textures
     public List<int> texSize;

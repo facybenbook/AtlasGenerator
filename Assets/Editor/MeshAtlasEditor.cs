@@ -637,10 +637,12 @@ public class MeshAtlasEditor : EditorWindow
         }
         if (meshdata.textures == null)
         {
+            meshdata.oldTexturePaths = new Dictionary<string, string>[meshdata.materials.Length];
             meshdata.textures = new Dictionary<string, Texture>[meshdata.materials.Length];
             int collectedTextures = 0;
             for (int m = 0; m < meshdata.materials.Length; m++)
             {
+                meshdata.oldTexturePaths[m] = new Dictionary<string, string>();
                 meshdata.textures[m] = new Dictionary<string, Texture>();
                 for (int p = 0; p < meshdata.setProperties.Count; p++)
                 {
@@ -648,6 +650,7 @@ public class MeshAtlasEditor : EditorWindow
                     meshdata.textures[m].Add(meshdata.setProperties[p], lTexture);
                     if (lTexture)
                     {
+                        meshdata.oldTexturePaths[m].Add(meshdata.setProperties[p], AssetDatabase.GetAssetPath(meshdata.materials[m].GetTexture(meshdata.setProperties[p])));
                         collectedTextures++;
                     }
                 }
@@ -665,6 +668,7 @@ public class MeshAtlasEditor : EditorWindow
                 for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
                 {
                     meshdata.observeTextures[m].Add(meshdata.nicFilledProperties[m][p], meshdata.materials[m].GetTexture(meshdata.nicFilledProperties[m][p]));
+                    meshdata.oldTexturePaths[m].Add(meshdata.nicFilledProperties[m][p], AssetDatabase.GetAssetPath(meshdata.materials[m].GetTexture(meshdata.nicFilledProperties[m][p])));
                     collectedObserveTextures++;
                 }
             }
@@ -686,16 +690,18 @@ public class MeshAtlasEditor : EditorWindow
                     if (lPath != "")
                     {
                         TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
-                        if (lImporter.textureType == TextureImporterType.NormalMap)
-                        {
-                            lConvert = true;
-                        }
                         if (lImporter.convertToNormalmap)
                         {
                             if (lImporter.heightmapScale > lStrength)
                             {
                                 lStrength = lImporter.heightmapScale;
                             }
+                        }
+                        if (lImporter.textureType == TextureImporterType.NormalMap)
+                        {
+                            lConvert = true;
+                            lImporter.textureType = TextureImporterType.Default;
+                            lImporter.SaveAndReimport();
                         }
                     }
 
@@ -722,16 +728,18 @@ public class MeshAtlasEditor : EditorWindow
                     if (lPath != "")
                     {
                         TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
-                        if (lImporter.textureType == TextureImporterType.NormalMap)
-                        {
-                            lConvert = true;
-                        }
                         if (lImporter.convertToNormalmap)
                         {
                             if (lImporter.heightmapScale > lStrength)
                             {
                                 lStrength = lImporter.heightmapScale;
                             }
+                        }
+                        if (lImporter.textureType == TextureImporterType.NormalMap)
+                        {
+                            lConvert = true;
+                            lImporter.textureType = TextureImporterType.Default;
+                            lImporter.SaveAndReimport();
                         }
                     }
                     
@@ -1118,6 +1126,29 @@ public class MeshAtlasEditor : EditorWindow
                     lImporter.textureType = TextureImporterType.NormalMap;
                 }
                 lImporter.SaveAndReimport();
+
+                for (int m = 0; m < meshdata.materials.Length; m++)
+                {
+                    if (!meshdata.oldTexturePaths[m].ContainsKey(meshdata.setProperties[p]))
+                    {
+                        continue;
+                    }
+                    string lPath = meshdata.oldTexturePaths[m][meshdata.setProperties[p]];
+                    if (lPath != "")
+                    {
+                        TextureImporter lOldImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
+                        if (meshdata.textureIsNormalMap[meshdata.setProperties[p]])
+                        {
+                            lOldImporter.textureType = TextureImporterType.NormalMap;
+                            if (meshdata.normalMapStrength.ContainsKey(meshdata.setProperties[p]) && meshdata.normalMapStrength[meshdata.setProperties[p]] > 0f)
+                            {
+                                lOldImporter.convertToNormalmap = true;
+                                lOldImporter.heightmapScale = meshdata.normalMapStrength[meshdata.setProperties[p]];
+                            }
+                        }
+                        lOldImporter.SaveAndReimport();
+                    }
+                }
             }
 
             for (int m = 0; m < meshdata.materials.Length; m++)
@@ -1130,6 +1161,26 @@ public class MeshAtlasEditor : EditorWindow
                       lImporter.textureType = TextureImporterType.NormalMap;
                     }
                     lImporter.SaveAndReimport();
+
+                    if (meshdata.oldTexturePaths[m].ContainsKey(meshdata.nicFilledProperties[m][p])) {
+                        continue;
+                    }
+
+                    string lPath = meshdata.oldTexturePaths[m][meshdata.nicFilledProperties[m][p]];
+                    if (lPath != "")
+                    {
+                        TextureImporter lOldImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
+                        if (meshdata.textureIsNormalMap[meshdata.nicFilledProperties[m][p]])
+                        {
+                            lOldImporter.textureType = TextureImporterType.NormalMap;
+                            if (meshdata.normalMapStrength[meshdata.nicFilledProperties[m][p]] > 0f)
+                            {
+                                lOldImporter.convertToNormalmap = true;
+                                lOldImporter.heightmapScale = meshdata.normalMapStrength[meshdata.nicFilledProperties[m][p]];
+                            }
+                        }
+                        lOldImporter.SaveAndReimport();
+                    }
                 }
             }
 
