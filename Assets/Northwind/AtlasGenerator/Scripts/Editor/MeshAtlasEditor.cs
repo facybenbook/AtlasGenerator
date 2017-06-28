@@ -43,7 +43,7 @@ namespace Northwind.AtlasGen
 
         GUIStyle bigCenteredLabel;
 
-        [MenuItem("Window/Texture Mesh Atlas Creator")]
+        [MenuItem("Northwind/Atlas Generator/Mesh Auto Atlas")]
         static void Init()
         {
             MeshAtlasEditor window = (MeshAtlasEditor)EditorWindow.GetWindow(typeof(MeshAtlasEditor));
@@ -52,7 +52,7 @@ namespace Northwind.AtlasGen
 
         void OnEnable()
         {
-            this.titleContent = new GUIContent("Atlas Mesh Creator", "Texture Atlas Mesh Generator");
+            this.titleContent = new GUIContent("NAG: Mesh", "Northwind Atlas Generator: Mesh");
             this.minSize = new Vector2(1024f, 512f);
 
             if (bigCenteredLabel == null)
@@ -126,8 +126,6 @@ namespace Northwind.AtlasGen
                 float lSize = 128f;
                 for (int u = 0; u < meshdata.triangles.Length; u++)
                 {
-
-                    //Handles.BeginGUI();
                     GUILayout.BeginArea(new Rect(4f + u * 136f, debugHeight, lSize, lSize));
                     EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
                     for (int t = 0; t < meshdata.triangles[u].Count - 2; t += 3)
@@ -145,7 +143,6 @@ namespace Northwind.AtlasGen
                         Handles.DrawLine(lC, lA);
                     }
                     GUILayout.EndArea();
-                    //Handles.EndGUI();
                 }
                 debugHeight += lSize + 8f;
             }
@@ -264,14 +261,14 @@ namespace Northwind.AtlasGen
                     }
                     debugHeight += 104f;
                 }
-                debugHeight += 8f;//104f;
+                debugHeight += 8f;
             }
             if (meshdata.resultMesh != null)
             {
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("UVs"), EditorStyles.boldLabel);
                 debugHeight += 20f;
                 float lSize = 128f;
-                //Handles.BeginGUI();
+
                 GUILayout.BeginArea(new Rect(4f, debugHeight, lSize, lSize));
                 EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
                 for (int u = 0; u < meshdata.triangles.Length; u++)
@@ -292,7 +289,7 @@ namespace Northwind.AtlasGen
                     }
                 }
                 GUILayout.EndArea();
-                //Handles.EndGUI();
+
                 debugHeight += lSize + 8f;
             }
 
@@ -918,8 +915,7 @@ namespace Northwind.AtlasGen
                         }
                         resultTexture = new RenderTexture(resultSize, resultSize, 0);
                         previewTexture = new RenderTexture(resultSize, resultSize, 0);
-
-                        List<IAtlasGenEffect> lEffects = new List<IAtlasGenEffect>();
+                        
                         TextureOperator.UpdateTexture(lTextures, resultSize, ref resultTexture, ref previewTexture, TextureOperator.InterpolatingMethods.Unique, new List<IAtlasGenEffect>());
 
                         Texture2D lNewTexture = new Texture2D(resultSize, resultSize);
@@ -1322,7 +1318,6 @@ namespace Northwind.AtlasGen
                 meshdata.finished = true;
                 return 8f / lSteps;
             }
-            //TODO: Generate Prefab
             return 1f;
         }
     }

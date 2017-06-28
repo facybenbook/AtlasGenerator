@@ -15,8 +15,6 @@ namespace Northwind.AtlasGen
         private Vector2 scrollView = Vector2.zero;
         private Vector2 scrollEffect = Vector2.zero;
 
-        private Texture2D tempTexture;
-
         private enum TextureSizes { _16 = 16, _32 = 32, _64 = 64, _128 = 128, _256 = 256, _512 = 512, _1024 = 1024, _2048 = 2048, _4096 = 4096, _8192 = 8192 };
         private int resultSize = 512;
 
@@ -25,11 +23,7 @@ namespace Northwind.AtlasGen
         private IAtlasGenEffect selectedEffect;
         private List<IAtlasGenEffect> effects = new List<IAtlasGenEffect>();
 
-
-        private string shaderName = "Hidden/AtlasGen/BlitToCoord";
-        private Material blitMat;
-
-        [MenuItem("Window/Texture Atlas Creator")]
+        [MenuItem("Northwind/Atlas Generator/Texture Atlas")]
         static void Init()
         {
             TextureAtlasEditor window = (TextureAtlasEditor)EditorWindow.GetWindow(typeof(TextureAtlasEditor));
@@ -38,7 +32,7 @@ namespace Northwind.AtlasGen
 
         void OnEnable()
         {
-            this.titleContent = new GUIContent("Atlas Creator", "Texture Atlas Generator");
+            this.titleContent = new GUIContent("NAG: Texture", "Northwind Atlas Generator: Texture");
             this.minSize = new Vector2(1024f, 512f);
 
             resultTexture = new RenderTexture(8, 8, 0);
@@ -46,8 +40,6 @@ namespace Northwind.AtlasGen
 
             previewTexture = new RenderTexture(8, 8, 0);
             previewTexture.Create();
-
-            blitMat = new Material(Shader.Find(shaderName));
         }
 
         private void Update()
@@ -142,7 +134,7 @@ namespace Northwind.AtlasGen
 
             if (GUILayout.Button("Add", EditorStyles.miniButtonMid, GUILayout.Width((rect.width / 2f) + 2f), GUILayout.Height(24f)))
             {
-                EditorGUIUtility.ShowObjectPicker<Texture2D>(tempTexture, false, "", 10);
+                EditorGUIUtility.ShowObjectPicker<Texture2D>(null, false, "", 10);
             }
 
             if (GUILayout.Button("Clear", EditorStyles.miniButtonRight, GUILayout.Width((rect.width / 2f) + 2f), GUILayout.Height(24f)))
