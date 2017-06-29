@@ -25,9 +25,9 @@ namespace Northwind.AtlasGen
 
         MeshAtlasData meshdata;
 
-        Color positiveColor = new Color(0.5f, 1f, 0.25f); //new Color(0f, 1f, 0f);
-        Color negativeColor = new Color(1f, 0.25f, 0.25f);// new Color(1f, 0f, 0f);
-        Color highlightColor = new Color(0.4f, 0.8f, 1f);// new Color(0.75f, 0.75f, 0f);
+        Color positiveColor = new Color(0.5f, 1f, 0.25f);
+        Color negativeColor = new Color(1f, 0.25f, 0.25f);
+        Color highlightColor = new Color(0.4f, 0.8f, 1f);
 
         string status = "";
         Vector2 statusScroll = Vector2.zero;
@@ -36,7 +36,6 @@ namespace Northwind.AtlasGen
 
         Vector2 debugScroll = Vector2.zero;
         float debugHeight = 200f;
-
 
         RenderTexture resultTexture, previewTexture;
 
@@ -95,7 +94,6 @@ namespace Northwind.AtlasGen
         private void DragField(Rect position, ref List<MeshRenderer> output)
         {
             Event evt = Event.current;
-            //GUI.Box(position, "Drop Object");
             EditorGUI.LabelField(position, new GUIContent("Drag MeshRenderer"), EditorStyles.centeredGreyMiniLabel);
 
             switch (evt.type)
@@ -216,29 +214,33 @@ namespace Northwind.AtlasGen
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("UVs"), EditorStyles.boldLabel);
                 debugHeight += 20f;
                 float lSize = 128f;
+                float lLastX = 0f;
                 for (int r = 0; r < renderer.Count; r++)
                 {
                     for (int u = 0; u < meshdata.triangles[r].Length; u++)
                     {
-                        GUILayout.BeginArea(new Rect(4f + r * (meshdata.triangles[r].Length - 1) * 136f + u * 136f, debugHeight, lSize, lSize));
-                        EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
-                        Debug.Log(meshdata.triangles[r][u]);
-                        for (int t = 0; t < meshdata.triangles[r][u].Count - 2; t += 3)
+                        if (meshdata.mesh[r] != null)
                         {
-                            Vector2 lA = meshdata.mesh[r].uv[meshdata.triangles[r][u][t]] * lSize;
-                            Vector2 lB = meshdata.mesh[r].uv[meshdata.triangles[r][u][t + 1]] * lSize;
-                            Vector2 lC = meshdata.mesh[r].uv[meshdata.triangles[r][u][t + 2]] * lSize;
+                            GUILayout.BeginArea(new Rect(4f + lLastX + u * 136f, debugHeight, lSize, lSize));
+                            EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
+                            for (int t = 0; t < meshdata.triangles[r][u].Count - 2; t += 3)
+                            {
+                                Vector2 lA = meshdata.mesh[r].uv[meshdata.triangles[r][u][t]] * lSize;
+                                Vector2 lB = meshdata.mesh[r].uv[meshdata.triangles[r][u][t + 1]] * lSize;
+                                Vector2 lC = meshdata.mesh[r].uv[meshdata.triangles[r][u][t + 2]] * lSize;
 
-                            lA.y = lSize - lA.y;
-                            lB.y = lSize - lB.y;
-                            lC.y = lSize - lC.y;
+                                lA.y = lSize - lA.y;
+                                lB.y = lSize - lB.y;
+                                lC.y = lSize - lC.y;
 
-                            Handles.DrawLine(lA, lB);
-                            Handles.DrawLine(lB, lC);
-                            Handles.DrawLine(lC, lA);
+                                Handles.DrawLine(lA, lB);
+                                Handles.DrawLine(lB, lC);
+                                Handles.DrawLine(lC, lA);
+                            }
+                            GUILayout.EndArea();
                         }
-                        GUILayout.EndArea();
                     }
+                    lLastX += (meshdata.triangles[r].Length) * 136f;
                 }
                 debugHeight += lSize + 8f;
             }
@@ -359,7 +361,7 @@ namespace Northwind.AtlasGen
                 }
                 debugHeight += 8f;
             }
-            if (meshdata.resultMesh != null)
+            if (meshdata.resultMesh != null && meshdata.triangles != null)
             {
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("UVs"), EditorStyles.boldLabel);
                 debugHeight += 20f;
@@ -407,6 +409,9 @@ namespace Northwind.AtlasGen
             if (addedRenderer != null && addedRenderer.Count > 0)
             {
                 renderer.AddRange(addedRenderer);
+                meshdata = new MeshAtlasData();
+                status = "";
+                currentState = "";
                 addedRenderer.Clear();
             }
             for (int r = 0; r < renderer.Count; r++)
@@ -438,6 +443,40 @@ namespace Northwind.AtlasGen
             status += "\n\n" + "Error: " + information + "\n";
             status += "Abandon Generation!";
             routine = null;
+
+            if (meshdata.oldTexturePaths != null)
+            {
+
+                status += "\n\n" + "Returning to last possible state...";
+                for (int p = 0; p < meshdata.setProperties.Count; p++)
+                {
+                    for (int m = 0; m < meshdata.materials.Count; m++)
+                    {
+                        if (!meshdata.oldTexturePaths[m].ContainsKey(meshdata.setProperties[p]))
+                        {
+                            continue;
+                        }
+                        string lPath = meshdata.oldTexturePaths[m][meshdata.setProperties[p]];
+                        if (lPath != "")
+                        {
+                            TextureImporter lOldImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
+                            if (lOldImporter != null)
+                            {
+                                if (meshdata.textureIsNormalMap[meshdata.setProperties[p]])
+                                {
+                                    lOldImporter.textureType = TextureImporterType.NormalMap;
+                                    if (meshdata.normalMapStrength.ContainsKey(meshdata.setProperties[p]) && meshdata.normalMapStrength[meshdata.setProperties[p]] > 0f)
+                                    {
+                                        lOldImporter.convertToNormalmap = true;
+                                        lOldImporter.heightmapScale = meshdata.normalMapStrength[meshdata.setProperties[p]];
+                                    }
+                                }
+                                lOldImporter.SaveAndReimport();
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         void UpdateMesh()
@@ -554,7 +593,13 @@ namespace Northwind.AtlasGen
                 meshdata.mesh = new List<Mesh>();
                 for (int r = 0; r < renderer.Count; r++)
                 {
-                    meshdata.mesh.Add(meshdata.filter[r].sharedMesh);
+                    Mesh lMesh = meshdata.filter[r].sharedMesh;
+                    if (lMesh == null)
+                    {
+                        Abandon("An input renderer has no Mesh set!");
+                        return 1f / lSteps;
+                    }
+                    meshdata.mesh.Add(lMesh);
                     AddStatus("Collecting Mesh: " + meshdata.mesh[r].name);
                 }
                 return 2f / lSteps;
@@ -653,6 +698,7 @@ namespace Northwind.AtlasGen
             {
                 for (int m = 0; m < meshdata.materials.Count; m++)
                 {
+                    bool lNothingFound = true;
                     Shader lShader = meshdata.materials[m].shader;
                     for (int s = 0; s < meshdata.shaders.Count; s++)
                     {
@@ -666,8 +712,16 @@ namespace Northwind.AtlasGen
                                     Abandon("RenderTexture found\nRenderTextures are not supported in a Texture Atlas\n  ->   " + meshdata.materials[m].name + "/" + meshdata.allProperties[s][p]);
                                     return 3f / lSteps;
                                 }
+                                if (lTexture != null)
+                                {
+                                    lNothingFound = false;
+                                }
                             }
                         }
+                    }
+                    if (lNothingFound)
+                    {
+                        Abandon("Material without Texture detected!");
                     }
                 }
                 meshdata.checkedRenderTexture = true;
@@ -1210,6 +1264,11 @@ namespace Northwind.AtlasGen
                 meshdata.meshPath = new string[renderer.Count];
                 for (int r = 0; r < renderer.Count; r++)
                 {
+                    if (meshdata.mesh[r] == null)
+                    {
+                        Abandon("One mesh was destroyed during the process!\nMaybe you have chosen a prefab which should be overwritten!");
+                        return 1f / lSteps;
+                    }
                     string lPath = meshdata.folderRoot + "/" + meshdata.mesh[r].name + "_AtlasMesh.Asset";
                     lPath = AssetDatabase.GenerateUniqueAssetPath(lPath);
                     AssetDatabase.CreateAsset(meshdata.resultMesh[r], lPath);

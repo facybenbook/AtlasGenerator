@@ -97,7 +97,6 @@ namespace Northwind.AtlasGen
         private void DragField(Rect position, ref List<Texture2D> output)
         {
             Event evt = Event.current;
-            //GUI.Box(position, "Drop Object");
             EditorGUI.LabelField(position, new GUIContent("Drag Texture"), EditorStyles.centeredGreyMiniLabel);
 
             switch (evt.type)
@@ -117,11 +116,7 @@ namespace Northwind.AtlasGen
                         {
                             if (AssetDatabase.Contains(dragged_object) && (dragged_object is Texture2D))
                             {
-                                //MeshRenderer lRenderer = ((GameObject)dragged_object).GetComponent<MeshRenderer>();
-                                //if ()//!renderer.Contains(lRenderer) && renderer.Count < 10)
-                                {
-                                    output.Add((Texture2D)dragged_object);
-                                }
+                                output.Add((Texture2D)dragged_object);
                             }
                         }
                     }
