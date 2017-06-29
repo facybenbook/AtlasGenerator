@@ -44,10 +44,13 @@ namespace Northwind.AtlasGen
 
         private void Update()
         {
-            if (addedTexture)
+            if (addedTextures != null && addedTextures.Count > 0)
             {
-                textures.Add(addedTexture);
-                addedTexture = null;
+                for (int t = 0; t < addedTextures.Count; t++)
+                {
+                    textures.Add(addedTextures[t]);
+                }
+                addedTextures.Clear();
                 Repaint();
                 UpdateTexture();
             }
@@ -85,11 +88,46 @@ namespace Northwind.AtlasGen
             }
         }
 
-        Texture2D addedTexture;
+        List<Texture2D> addedTextures = new List<Texture2D>();
         IAtlasGenEffect addedEffect;
         bool clear = false;
         int? delTexture;
         int? delEffect;
+
+        private void DragField(Rect position, ref List<Texture2D> output)
+        {
+            Event evt = Event.current;
+            //GUI.Box(position, "Drop Object");
+            EditorGUI.LabelField(position, new GUIContent("Drag Texture"), EditorStyles.centeredGreyMiniLabel);
+
+            switch (evt.type)
+            {
+                case EventType.DragUpdated:
+                case EventType.DragPerform:
+                    if (!position.Contains(evt.mousePosition))
+                        return;
+
+                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+
+                    if (evt.type == EventType.DragPerform)
+                    {
+                        DragAndDrop.AcceptDrag();
+
+                        foreach (Object dragged_object in DragAndDrop.objectReferences)
+                        {
+                            if (AssetDatabase.Contains(dragged_object) && (dragged_object is Texture2D))
+                            {
+                                //MeshRenderer lRenderer = ((GameObject)dragged_object).GetComponent<MeshRenderer>();
+                                //if ()//!renderer.Contains(lRenderer) && renderer.Count < 10)
+                                {
+                                    output.Add((Texture2D)dragged_object);
+                                }
+                            }
+                        }
+                    }
+                    break;
+            }
+        }
 
         void DrawTextureBox(int textureID, float width, float height)
         {
@@ -118,6 +156,7 @@ namespace Northwind.AtlasGen
         void DrawTexturePanel(Rect rect)
         {
             GUILayout.BeginArea(new Rect(0f, 0f, rect.width, this.position.height - 24f));
+            DragField(new Rect(0f, 0f, rect.width, this.position.height - 24f), ref addedTextures);
             scrollView = GUILayout.BeginScrollView(scrollView, false, true);
 
             for (int t = 0; t < textures.Count; t++)
@@ -293,7 +332,8 @@ namespace Northwind.AtlasGen
             {
                 if (EditorGUIUtility.GetObjectPickerControlID() == 10)
                 {
-                    addedTexture = (Texture2D)EditorGUIUtility.GetObjectPickerObject();
+                    addedTextures.Clear();
+                    addedTextures.Add((Texture2D)EditorGUIUtility.GetObjectPickerObject());
                 }
                 else if (EditorGUIUtility.GetObjectPickerControlID() == 11)
                 {

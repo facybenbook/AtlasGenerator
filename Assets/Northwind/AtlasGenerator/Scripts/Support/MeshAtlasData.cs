@@ -8,13 +8,15 @@ namespace Northwind.AtlasGen
     {
 
         //Mesh Data
-        public MeshFilter filter;
-        public Mesh mesh;
+        public List<MeshFilter> filter;
+        public List<Mesh> mesh;
         public int subMeshCount;
-        public List<int>[] triangles;
+        public List<List<int>[]> triangles;
 
         //Material Data
-        public Material[] materials;
+        public List<Material> materials;
+        public Dictionary<int, int> boundMaterials; //key = material : value = renderer
+        public Dictionary<int, Dictionary<int, int>> materialLib; //key = renderer : ar = global Material : value = local material
         public List<Shader> shaders;
 
         public List<string>[] allProperties;
@@ -37,14 +39,14 @@ namespace Northwind.AtlasGen
         public Dictionary<string, float> normalMapStrength;
 
         //Process Mesh
-        public Mesh resultMesh;
+        public Mesh[] resultMesh;
         public Material[] resultMaterials;
 
         //Finalize
         public string folderRoot;
         public string fileEnding;
         public bool savedMesh;
-        public string meshPath;
+        public string[] meshPath;
         public bool savedTextures;
         public Dictionary<string, string> texturePaths;
         public bool postdefinedTexSettings;

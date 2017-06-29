@@ -7,7 +7,8 @@ namespace Northwind.AtlasGen
 {
     public class MeshAtlasEditor : EditorWindow
     {
-        MeshRenderer renderer;
+        List<MeshRenderer> renderer = new List<MeshRenderer>();
+        List<MeshRenderer> addedRenderer = new List<MeshRenderer>();
 
         enum PreferredSizes { Smallest, Biggest };
         PreferredSizes preferredSize = PreferredSizes.Biggest;
@@ -15,16 +16,18 @@ namespace Northwind.AtlasGen
         private enum TextureSizes { _16 = 16, _32 = 32, _64 = 64, _128 = 128, _256 = 256, _512 = 512, _1024 = 1024, _2048 = 2048, _4096 = 4096, _8192 = 8192 };
         private int resultSize = 1024;
 
-        private enum SaveOptions { Replace, GenerateNew };
-        private SaveOptions saveOption = SaveOptions.Replace;
+        private enum SaveOptions { ReplacePrefab, ReplaceGenerated, GenerateNew };
+        private SaveOptions saveOption = SaveOptions.ReplaceGenerated;
+
+        string saveName = "";
 
         bool debugDetails;
 
         MeshAtlasData meshdata;
 
-        Color positiveColor = new Color(0f, 1f, 0f);
-        Color negativeColor = new Color(1f, 0f, 0f);
-        Color highlightColor = new Color(0.75f, 0.75f, 0f);
+        Color positiveColor = new Color(0.5f, 1f, 0.25f); //new Color(0f, 1f, 0f);
+        Color negativeColor = new Color(1f, 0.25f, 0.25f);// new Color(1f, 0f, 0f);
+        Color highlightColor = new Color(0.4f, 0.8f, 1f);// new Color(0.75f, 0.75f, 0f);
 
         string status = "";
         Vector2 statusScroll = Vector2.zero;
@@ -41,7 +44,7 @@ namespace Northwind.AtlasGen
 
         IEnumerator routine;
 
-        GUIStyle bigCenteredLabel;
+        GUIStyle bigCenteredLabel, boldCenteredLabel, bigButton;
 
         [MenuItem("Northwind/Atlas Generator/Mesh Auto Atlas")]
         static void Init()
@@ -61,20 +64,101 @@ namespace Northwind.AtlasGen
                 bigCenteredLabel.alignment = TextAnchor.MiddleCenter;
                 bigCenteredLabel.fontSize = 32;
             }
+            if (boldCenteredLabel == null)
+            {
+                boldCenteredLabel = new GUIStyle(EditorStyles.boldLabel);
+                boldCenteredLabel.alignment = TextAnchor.MiddleCenter;
+            }
+            if (bigButton == null)
+            {
+                bigButton = new GUIStyle(EditorStyles.miniButton);
+                bigButton.fontStyle = FontStyle.Bold;
+                bigButton.fontSize = 14;
+            }
         }
 
         void OnGUI()
         {
-            SettingsArea(new Rect(0f, 0f, this.position.width, 64f));
-            EditorGUI.ProgressBar(new Rect(0f, 64f, this.position.width, 16f), process / 100f, "Process " + (int)Mathf.Round(process) + "%");
+            InputArea(new Rect(0f, 0f, 256f, this.position.height));
+            SettingsArea(new Rect(256f, 0f, this.position.width - 256f, 64f));
+            EditorGUI.ProgressBar(new Rect(256f, 64f, this.position.width - 256f, 16f), process / 100f, "Process " + (int)Mathf.Round(process) + "%");
             if (debugDetails)
             {
-                DebugArea(new Rect(0f, 80f, this.position.width, this.position.height - 80f));
+                DebugArea(new Rect(256f, 80f, this.position.width - 256f, this.position.height - 80f));
             }
             else
             {
-                GUI.Label(new Rect(0f, 80f, this.position.width, this.position.height - 80f), new GUIContent(currentState), bigCenteredLabel);
+                GUI.Label(new Rect(256f, 80f, this.position.width - 256f, this.position.height - 80f), new GUIContent(currentState), bigCenteredLabel);
             }
+        }
+
+        private void DragField(Rect position, ref List<MeshRenderer> output)
+        {
+            Event evt = Event.current;
+            //GUI.Box(position, "Drop Object");
+            EditorGUI.LabelField(position, new GUIContent("Drag MeshRenderer"), EditorStyles.centeredGreyMiniLabel);
+
+            switch (evt.type)
+            {
+                case EventType.DragUpdated:
+                case EventType.DragPerform:
+                    if (!position.Contains(evt.mousePosition))
+                        return;
+
+                    DragAndDrop.visualMode = DragAndDropVisualMode.Copy;
+
+                    if (evt.type == EventType.DragPerform)
+                    {
+                        DragAndDrop.AcceptDrag();
+
+                        foreach (Object dragged_object in DragAndDrop.objectReferences)
+                        {
+                            if (AssetDatabase.Contains(dragged_object) && (dragged_object is GameObject))
+                            {
+                                MeshRenderer lRenderer = ((GameObject)dragged_object).GetComponent<MeshRenderer>();
+                                if (!renderer.Contains(lRenderer) && renderer.Count < 10)
+                                {
+                                    output.Add(lRenderer);
+                                }
+                            }
+                        }
+                    }
+                    break;
+            }
+        }
+
+        void InputArea(Rect pos)
+        {
+            EditorGUI.BeginDisabledGroup(routine != null);
+
+            GUILayout.BeginArea(new Rect(pos.x, pos.y, pos.width, 32f), EditorStyles.helpBox);
+
+            EditorGUI.LabelField(new Rect(0f, 0f, pos.width, 32f), new GUIContent("Input Renderers"), boldCenteredLabel);
+
+            GUILayout.EndArea();
+
+            GUILayout.BeginArea(new Rect(pos.x, pos.y + 32f, pos.width, pos.height - 32f), EditorStyles.helpBox);
+
+            float lCenter = pos.width * 0.85f;
+
+            for (int r = 0; r < renderer.Count; r++)
+            {
+                GUILayout.BeginArea(new Rect(0f, 8f + r * 32f, lCenter, 24f), EditorStyles.miniButtonMid);
+                renderer[r] = (MeshRenderer)EditorGUI.ObjectField(new Rect(4f, 5f, lCenter - 8f, 16f), renderer[r], typeof(MeshRenderer), false);
+                GUILayout.EndArea();
+                Color lOldColor = GUI.backgroundColor;
+                GUI.backgroundColor = negativeColor;
+                if (GUI.Button(new Rect(lCenter, 8f + r * 32f, (pos.width - lCenter) - 8f, 24f), new GUIContent("X"), EditorStyles.miniButtonRight)) {
+                    renderer[r] = null;
+                }
+                GUI.backgroundColor = lOldColor;
+            }
+            
+            DragField(new Rect(0f, 0f, pos.width, pos.height - 32f), ref addedRenderer);
+
+            GUILayout.EndArea();
+
+            EditorGUI.EndDisabledGroup();
         }
 
         void SettingsArea(Rect pos)
@@ -83,31 +167,39 @@ namespace Northwind.AtlasGen
             float lLastY = 4f;
             GUILayout.BeginArea(pos, EditorStyles.helpBox);
 
-            renderer = (MeshRenderer)EditorGUI.ObjectField(new Rect(4f, lLastY, lCenter.x - 8f, 16f), new GUIContent("Mesh Renderer"), renderer, typeof(MeshRenderer), false);
-            lLastY += 20f;
+            EditorGUI.BeginDisabledGroup(routine != null);
 
             preferredSize = (PreferredSizes)EditorGUI.EnumPopup(new Rect(4f, lLastY, (lCenter.x / 2f) - 4f, 16f), new GUIContent("Preferred Size"), preferredSize);
-            resultSize = (int)(TextureSizes)EditorGUI.EnumPopup(new Rect((lCenter.x / 2f) + 4f, lLastY, (lCenter.x / 2f) - 8f, 16f), new GUIContent("Result Size"), (TextureSizes)resultSize);
             lLastY += 20f;
-
+            resultSize = (int)(TextureSizes)EditorGUI.EnumPopup(new Rect(4f, lLastY, (lCenter.x / 2f) - 4f, 16f), new GUIContent("Result Size"), (TextureSizes)resultSize);
+            lLastY += 20f;
             saveOption = (SaveOptions)EditorGUI.EnumPopup(new Rect(4f, lLastY, (lCenter.x / 2f) - 4f, 16f), new GUIContent("Save Option"), saveOption);
-            lLastY += 20f;
+
+            lLastY = 4f;
+            float lLastX = (lCenter.x / 2f);
+            saveName = EditorGUI.TextField(new Rect(lLastX + 4f, lLastY, lLastX - 8f, 16f), new GUIContent("Save Name"), saveName);
+
+            EditorGUI.EndDisabledGroup();
 
             lLastY = 4f;
             Color lOldColor = GUI.backgroundColor;
             GUI.backgroundColor = debugDetails ? positiveColor : negativeColor;
-            if (GUI.Button(new Rect(lCenter.x + 4f, lLastY, (pos.width - lCenter.x) - 8f, 16f), new GUIContent("Show Details")))
+            if (GUI.Button(new Rect(lCenter.x + 4f, lLastY, (pos.width - lCenter.x) - 4f, 16f), new GUIContent("Show Details")))
             {
                 debugDetails = !debugDetails;
             }
             lLastY += 20f;
+            
+            EditorGUI.BeginDisabledGroup(routine != null);
 
             GUI.backgroundColor = highlightColor;
-            if (GUI.Button(new Rect(lCenter.x + 4f, lLastY, (pos.width - lCenter.x) - 8f, 36f), new GUIContent("Update")))
+            if (GUI.Button(new Rect(lCenter.x + 4f, lLastY, (pos.width - lCenter.x) - 8f, 36f), new GUIContent("Update"), bigButton)) 
             {
                 UpdateMesh();
             }
             GUI.backgroundColor = lOldColor;
+
+            EditorGUI.EndDisabledGroup();
 
             GUILayout.EndArea();
         }
@@ -124,25 +216,29 @@ namespace Northwind.AtlasGen
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("UVs"), EditorStyles.boldLabel);
                 debugHeight += 20f;
                 float lSize = 128f;
-                for (int u = 0; u < meshdata.triangles.Length; u++)
+                for (int r = 0; r < renderer.Count; r++)
                 {
-                    GUILayout.BeginArea(new Rect(4f + u * 136f, debugHeight, lSize, lSize));
-                    EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
-                    for (int t = 0; t < meshdata.triangles[u].Count - 2; t += 3)
+                    for (int u = 0; u < meshdata.triangles[r].Length; u++)
                     {
-                        Vector2 lA = meshdata.mesh.uv[meshdata.triangles[u][t]] * lSize;
-                        Vector2 lB = meshdata.mesh.uv[meshdata.triangles[u][t + 1]] * lSize;
-                        Vector2 lC = meshdata.mesh.uv[meshdata.triangles[u][t + 2]] * lSize;
+                        GUILayout.BeginArea(new Rect(4f + r * (meshdata.triangles[r].Length - 1) * 136f + u * 136f, debugHeight, lSize, lSize));
+                        EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
+                        Debug.Log(meshdata.triangles[r][u]);
+                        for (int t = 0; t < meshdata.triangles[r][u].Count - 2; t += 3)
+                        {
+                            Vector2 lA = meshdata.mesh[r].uv[meshdata.triangles[r][u][t]] * lSize;
+                            Vector2 lB = meshdata.mesh[r].uv[meshdata.triangles[r][u][t + 1]] * lSize;
+                            Vector2 lC = meshdata.mesh[r].uv[meshdata.triangles[r][u][t + 2]] * lSize;
 
-                        lA.y = lSize - lA.y;
-                        lB.y = lSize - lB.y;
-                        lC.y = lSize - lC.y;
+                            lA.y = lSize - lA.y;
+                            lB.y = lSize - lB.y;
+                            lC.y = lSize - lC.y;
 
-                        Handles.DrawLine(lA, lB);
-                        Handles.DrawLine(lB, lC);
-                        Handles.DrawLine(lC, lA);
+                            Handles.DrawLine(lA, lB);
+                            Handles.DrawLine(lB, lC);
+                            Handles.DrawLine(lC, lA);
+                        }
+                        GUILayout.EndArea();
                     }
-                    GUILayout.EndArea();
                 }
                 debugHeight += lSize + 8f;
             }
@@ -150,7 +246,7 @@ namespace Northwind.AtlasGen
             {
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("Textures"), EditorStyles.boldLabel);
                 debugHeight += 20f;
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     EditorGUI.DrawRect(new Rect(6f + 72f * m, debugHeight, 70f, 16f), new Color(0f, 0f, 0f, 0.75f));
                     GUI.Label(new Rect(4f + 72f * m, debugHeight, 72f, 16f), new GUIContent("Mat " + m), EditorStyles.centeredGreyMiniLabel);
@@ -158,10 +254,10 @@ namespace Northwind.AtlasGen
                 debugHeight += 24f;
                 for (int p = 0; p < meshdata.setProperties.Count; p++)
                 {
-                    EditorGUI.DrawRect(new Rect(4f, debugHeight, meshdata.materials.Length * 72f, 84f), new Color(0f, 0f, 0f, 0.75f));
-                    GUI.Label(new Rect(8f, debugHeight, meshdata.materials.Length * 72f, 16f), new GUIContent(meshdata.setProperties[p]));
+                    EditorGUI.DrawRect(new Rect(4f, debugHeight, meshdata.materials.Count * 72f, 84f), new Color(0f, 0f, 0f, 0.75f));
+                    GUI.Label(new Rect(8f, debugHeight, meshdata.materials.Count * 72f, 16f), new GUIContent(meshdata.setProperties[p]));
                     debugHeight += 16f;
-                    for (int m = 0; m < meshdata.materials.Length; m++)
+                    for (int m = 0; m < meshdata.materials.Count; m++)
                     {
                         Texture lTexture = meshdata.textures[m][meshdata.setProperties[p]];
                         if (lTexture != null)
@@ -181,18 +277,18 @@ namespace Northwind.AtlasGen
             {
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("Observed Textures"), EditorStyles.boldLabel);
                 debugHeight += 20f;
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     EditorGUI.DrawRect(new Rect(6f + 72f * m, debugHeight, 70f, 16f), new Color(0f, 0f, 0f, 0.75f));
                     GUI.Label(new Rect(4f + 72f * m, debugHeight, 72f, 16f), new GUIContent("Mat " + m), EditorStyles.centeredGreyMiniLabel);
                 }
                 debugHeight += 24f;
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
                     {
-                        EditorGUI.DrawRect(new Rect(4f, debugHeight, meshdata.materials.Length * 72f, 84f), new Color(0f, 0f, 0f, 0.75f));
-                        GUI.Label(new Rect(8f, debugHeight, meshdata.materials.Length * 72f, 16f), new GUIContent(meshdata.nicFilledProperties[m][p]));
+                        EditorGUI.DrawRect(new Rect(4f, debugHeight, meshdata.materials.Count * 72f, 84f), new Color(0f, 0f, 0f, 0.75f));
+                        GUI.Label(new Rect(8f, debugHeight, meshdata.materials.Count * 72f, 16f), new GUIContent(meshdata.nicFilledProperties[m][p]));
                         debugHeight += 16f;
                         {
                             Texture lTexture = meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]];
@@ -214,7 +310,7 @@ namespace Northwind.AtlasGen
             {
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("Processed Sizes"), EditorStyles.boldLabel);
                 debugHeight += 20f;
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     EditorGUI.DrawRect(new Rect(6f + 72f * m, debugHeight, 70f, 16f), new Color(0f, 0f, 0f, 0.75f));
                     GUI.Label(new Rect(4f + 72f * m, debugHeight, 72f, 16f), new GUIContent(meshdata.texSize[m] + "x" + meshdata.texSize[m]), EditorStyles.centeredGreyMiniLabel);
@@ -241,7 +337,7 @@ namespace Northwind.AtlasGen
             {
                 GUI.Label(new Rect(4f, debugHeight, lCenter.x - 24f, 16f), new GUIContent("Observed Atlas Textures"), EditorStyles.boldLabel);
                 debugHeight += 20f;
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     if (meshdata.observedAtlas[m].Count < 1)
                     {
@@ -271,21 +367,24 @@ namespace Northwind.AtlasGen
 
                 GUILayout.BeginArea(new Rect(4f, debugHeight, lSize, lSize));
                 EditorGUI.DrawRect(new Rect(0f, 0f, lSize, lSize), new Color(0f, 0f, 0f, 0.75f));
-                for (int u = 0; u < meshdata.triangles.Length; u++)
+                for (int r = 0; r < renderer.Count; r++)
                 {
-                    for (int t = 0; t < meshdata.triangles[u].Count - 2; t += 3)
+                    for (int u = 0; u < meshdata.triangles[r].Length; u++)
                     {
-                        Vector2 lA = meshdata.resultMesh.uv[meshdata.triangles[u][t]] * lSize;
-                        Vector2 lB = meshdata.resultMesh.uv[meshdata.triangles[u][t + 1]] * lSize;
-                        Vector2 lC = meshdata.resultMesh.uv[meshdata.triangles[u][t + 2]] * lSize;
+                        for (int t = 0; t < meshdata.triangles[r][u].Count - 2; t += 3)
+                        {
+                            Vector2 lA = meshdata.resultMesh[r].uv[meshdata.triangles[r][u][t]] * lSize;
+                            Vector2 lB = meshdata.resultMesh[r].uv[meshdata.triangles[r][u][t + 1]] * lSize;
+                            Vector2 lC = meshdata.resultMesh[r].uv[meshdata.triangles[r][u][t + 2]] * lSize;
 
-                        lA.y = lSize - lA.y;
-                        lB.y = lSize - lB.y;
-                        lC.y = lSize - lC.y;
+                            lA.y = lSize - lA.y;
+                            lB.y = lSize - lB.y;
+                            lC.y = lSize - lC.y;
 
-                        Handles.DrawLine(lA, lB);
-                        Handles.DrawLine(lB, lC);
-                        Handles.DrawLine(lC, lA);
+                            Handles.DrawLine(lA, lB);
+                            Handles.DrawLine(lB, lC);
+                            Handles.DrawLine(lC, lA);
+                        }
                     }
                 }
                 GUILayout.EndArea();
@@ -305,6 +404,19 @@ namespace Northwind.AtlasGen
 
         private void Update()
         {
+            if (addedRenderer != null && addedRenderer.Count > 0)
+            {
+                renderer.AddRange(addedRenderer);
+                addedRenderer.Clear();
+            }
+            for (int r = 0; r < renderer.Count; r++)
+            {
+                if (renderer[r] == null)
+                {
+                    renderer.RemoveAt(r);
+                }
+            }
+
             if (routine != null)
             {
                 if (!routine.MoveNext())
@@ -422,26 +534,37 @@ namespace Northwind.AtlasGen
         float CollectMeshInformation()
         {
             float lSteps = 5f;
-            if (!renderer)
+            if (renderer.Count < 1)
             {
                 Abandon("No Mesh Renderer set");
                 return 0f;
             }
-            if (!meshdata.filter)
+            if (meshdata.filter == null)
             {
-                meshdata.filter = renderer.GetComponent<MeshFilter>();
-                AddStatus("Collecting Mesh Filter: " + meshdata.filter.name);
+                meshdata.filter = new List<MeshFilter>();
+                for (int r = 0; r < renderer.Count; r++)
+                {
+                    meshdata.filter.Add(renderer[r].GetComponent<MeshFilter>());
+                    AddStatus("Collecting Mesh Filter: " + meshdata.filter[r].name);
+                }
                 return 1f / lSteps;
             }
-            if (!meshdata.mesh)
+            if (meshdata.mesh == null)
             {
-                meshdata.mesh = meshdata.filter.sharedMesh;
-                AddStatus("Collecting Mesh: " + meshdata.mesh.name);
+                meshdata.mesh = new List<Mesh>();
+                for (int r = 0; r < renderer.Count; r++)
+                {
+                    meshdata.mesh.Add(meshdata.filter[r].sharedMesh);
+                    AddStatus("Collecting Mesh: " + meshdata.mesh[r].name);
+                }
                 return 2f / lSteps;
             }
             if (meshdata.subMeshCount == 0)
             {
-                meshdata.subMeshCount = meshdata.mesh.subMeshCount;
+                for (int m = 0; m < meshdata.mesh.Count; m++)
+                {
+                    meshdata.subMeshCount += meshdata.mesh[m].subMeshCount;
+                }
                 AddStatus("Collected Submeshes: " + meshdata.subMeshCount);
                 return 3f / lSteps;
             }
@@ -452,12 +575,16 @@ namespace Northwind.AtlasGen
             }
             if (meshdata.triangles == null)
             {
-                meshdata.triangles = new List<int>[meshdata.subMeshCount];
-                for (int t = 0; t < meshdata.subMeshCount; t++)
+                meshdata.triangles = new List<List<int>[]>();
+                for (int r = 0; r < renderer.Count; r++)
                 {
-                    meshdata.triangles[t] = new List<int>(meshdata.mesh.GetTriangles(t));
+                    meshdata.triangles.Add(new List<int>[meshdata.mesh[r].subMeshCount]); 
+                    for (int t = 0; t < meshdata.mesh[r].subMeshCount; t++)
+                    {
+                        meshdata.triangles[r][t] = new List<int>(meshdata.mesh[r].GetTriangles(t));
+                    }
+                    AddStatus("Collected UVs: " + meshdata.triangles[r].Length);
                 }
-                AddStatus("Collected UVs: " + meshdata.triangles.Length);
                 return 5f / lSteps;
             }
             return 1f;
@@ -469,14 +596,26 @@ namespace Northwind.AtlasGen
 
             if (meshdata.materials == null)
             {
-                meshdata.materials = renderer.sharedMaterials;
-                AddStatus("Collected Materials: " + meshdata.materials.Length);
+                meshdata.boundMaterials = new Dictionary<int, int>();
+                meshdata.materialLib = new Dictionary<int, Dictionary<int, int>>();
+                meshdata.materials = new List<Material>();
+                for (int r = 0; r < renderer.Count; r++)
+                {
+                    meshdata.materialLib.Add(r, new Dictionary<int, int>());
+                    for (int m = 0; m < renderer[r].sharedMaterials.Length; m++)
+                    {
+                        meshdata.materials.Add(renderer[r].sharedMaterials[m]);
+                        meshdata.boundMaterials.Add(meshdata.materials.Count - 1, r);
+                        meshdata.materialLib[r].Add(meshdata.materials.Count - 1, m);
+                    }
+                    AddStatus("Collected Materials: " + meshdata.materials.Count);
+                }
                 return 1f / lSteps;
             }
             if (meshdata.shaders == null)
             {
                 meshdata.shaders = new List<Shader>();
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     if (!meshdata.shaders.Contains(meshdata.materials[m].shader))
                     {
@@ -512,7 +651,7 @@ namespace Northwind.AtlasGen
             }
             if (!meshdata.checkedRenderTexture)
             {
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     Shader lShader = meshdata.materials[m].shader;
                     for (int s = 0; s < meshdata.shaders.Count; s++)
@@ -568,7 +707,7 @@ namespace Northwind.AtlasGen
                 for (int p = 0; p < meshdata.properties.Count; p++)
                 {
                     bool lIsSet = false;
-                    for (int m = 0; m < meshdata.materials.Length; m++)
+                    for (int m = 0; m < meshdata.materials.Count; m++)
                     {
                         if (meshdata.materials[m].GetTexture(meshdata.properties[p]) != null)
                         {
@@ -585,9 +724,9 @@ namespace Northwind.AtlasGen
             }
             if (meshdata.nicFilledProperties == null)
             {
-                meshdata.nicFilledProperties = new List<string>[meshdata.materials.Length];
+                meshdata.nicFilledProperties = new List<string>[meshdata.materials.Count];
 
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     meshdata.nicFilledProperties[m] = new List<string>();
                 }
@@ -607,7 +746,7 @@ namespace Northwind.AtlasGen
                         {
                             continue;
                         }
-                        for (int m = 0; m < meshdata.materials.Length; m++)
+                        for (int m = 0; m < meshdata.materials.Count; m++)
                         {
                             Shader lShader = meshdata.materials[m].shader;
                             for (int sp = 0; sp < ShaderUtil.GetPropertyCount(lShader); sp++)
@@ -631,7 +770,7 @@ namespace Northwind.AtlasGen
                     }
                 }
                 AddStatus("Texture Properties which are not in common but filled: " + notInCommonButFilled);
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     AddStatus("  ->   Material " + (m + 1) + " Texture Properties are filled: " + meshdata.nicFilledProperties[m].Count);
                 }
@@ -639,10 +778,10 @@ namespace Northwind.AtlasGen
             }
             if (meshdata.textures == null)
             {
-                meshdata.oldTexturePaths = new Dictionary<string, string>[meshdata.materials.Length];
-                meshdata.textures = new Dictionary<string, Texture>[meshdata.materials.Length];
+                meshdata.oldTexturePaths = new Dictionary<string, string>[meshdata.materials.Count];
+                meshdata.textures = new Dictionary<string, Texture>[meshdata.materials.Count];
                 int collectedTextures = 0;
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     meshdata.oldTexturePaths[m] = new Dictionary<string, string>();
                     meshdata.textures[m] = new Dictionary<string, Texture>();
@@ -662,9 +801,9 @@ namespace Northwind.AtlasGen
             }
             if (meshdata.observeTextures == null)
             {
-                meshdata.observeTextures = new Dictionary<string, Texture>[meshdata.materials.Length];
+                meshdata.observeTextures = new Dictionary<string, Texture>[meshdata.materials.Count];
                 int collectedObserveTextures = 0;
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     meshdata.observeTextures[m] = new Dictionary<string, Texture>();
                     for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
@@ -685,7 +824,7 @@ namespace Northwind.AtlasGen
                 for (int p = 0; p < meshdata.setProperties.Count; p++)
                 {
                     bool lConvert = false;
-                    for (int m = 0; m < meshdata.materials.Length; m++)
+                    for (int m = 0; m < meshdata.materials.Count; m++)
                     {
                         float lStrength = 0f;
                         string lPath = AssetDatabase.GetAssetPath(meshdata.materials[m].GetTexture(meshdata.setProperties[p]));
@@ -719,7 +858,7 @@ namespace Northwind.AtlasGen
                     meshdata.textureIsNormalMap.Add(meshdata.setProperties[p], lConvert);
                 }
 
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
                     {
@@ -771,7 +910,7 @@ namespace Northwind.AtlasGen
             {
                 AddStatus("Chosen Size Mode: " + preferredSize.ToString());
                 meshdata.texSize = new List<int>();
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     int lMinSize = int.MaxValue;
                     int lMaxSize = 0;
@@ -820,7 +959,7 @@ namespace Northwind.AtlasGen
             }
             if (!meshdata.resized)
             {
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     int lSize = meshdata.texSize[m];
                     RenderTexture lRenderTexture = RenderTexture.GetTemporary(lSize, lSize);
@@ -872,7 +1011,7 @@ namespace Northwind.AtlasGen
                 for (int p = 0; p < meshdata.setProperties.Count; p++)
                 {
                     List<Texture2D> lTextures = new List<Texture2D>();
-                    for (int m = 0; m < meshdata.materials.Length; m++)
+                    for (int m = 0; m < meshdata.materials.Count; m++)
                     {
                         lTextures.Add((Texture2D)meshdata.textures[m][meshdata.setProperties[p]]);
                     }
@@ -895,14 +1034,14 @@ namespace Northwind.AtlasGen
             if (meshdata.observedAtlas == null)
             {
                 AddStatus("Generate Observed Atlas Textures:");
-                meshdata.observedAtlas = new Dictionary<string, Texture>[meshdata.materials.Length];
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                meshdata.observedAtlas = new Dictionary<string, Texture>[meshdata.materials.Count];
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     meshdata.observedAtlas[m] = new Dictionary<string, Texture>();
                     for (int p = 0; p < meshdata.observeTextures[m].Count; p++)
                     {
                         List<Texture2D> lTextures = new List<Texture2D>();
-                        for (int mt = 0; mt < meshdata.materials.Length; mt++)
+                        for (int mt = 0; mt < meshdata.materials.Count; mt++)
                         {
                             if (mt == m)
                             {
@@ -937,73 +1076,85 @@ namespace Northwind.AtlasGen
             float lSteps = 2f;
             if (meshdata.resultMesh == null)
             {
-                Mesh lMesh = new Mesh();
-
-                lMesh.vertices = meshdata.mesh.vertices;
-                lMesh.normals = meshdata.mesh.normals;
-
                 List<IDSqaure> lSquares = new List<IDSqaure>();
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     IDSqaure lIDSqaure = new IDSqaure(Vector2.zero, meshdata.textures[m][meshdata.setProperties[0]].width, m);
                     lSquares.Add(lIDSqaure);
                 }
                 Dictionary<int, Rect> lPos = TextureOperator.CalculateIDPos(lSquares);
 
-                lMesh.subMeshCount = meshdata.triangles.Length;
-                for (int s = 0; s < meshdata.triangles.Length; s++)
-                {
-                    lMesh.SetTriangles(meshdata.triangles[s], s);
-                }
+                meshdata.resultMesh = new Mesh[renderer.Count];
 
-                lMesh.uv = new Vector2[meshdata.mesh.uv.Length];
-                Vector2[] lUV = new Vector2[meshdata.mesh.uv.Length];
-
-                for (int u = 0; u < meshdata.triangles.Length; u++)
+                for (int r = 0; r < renderer.Count; r++)
                 {
-                    Rect lRect = lPos[u];
-                    for (int t = 0; t < meshdata.triangles[u].Count - 2; t += 3)
+
+                    Mesh lMesh = new Mesh();
+
+                    lMesh.vertices = meshdata.mesh[r].vertices;
+                    lMesh.normals = meshdata.mesh[r].normals;
+                    lMesh.tangents = meshdata.mesh[r].tangents;
+
+                    lMesh.subMeshCount = meshdata.triangles[r].Length;
+                    for (int s = 0; s < meshdata.triangles[r].Length; s++)
                     {
-                        Vector2 lA = meshdata.mesh.uv[meshdata.triangles[u][t]];
-                        Vector2 lB = meshdata.mesh.uv[meshdata.triangles[u][t + 1]];
-                        Vector2 lC = meshdata.mesh.uv[meshdata.triangles[u][t + 2]];
-
-                        lA.y = 1f - lA.y;
-                        lB.y = 1f - lB.y;
-                        lC.y = 1f - lC.y;
-
-                        lA.x *= lRect.width;
-                        lA.y *= lRect.height;
-                        lA += lRect.position;
-
-                        lB.x *= lRect.width;
-                        lB.y *= lRect.height;
-                        lB += lRect.position;
-
-                        lC.x *= lRect.width;
-                        lC.y *= lRect.height;
-                        lC += lRect.position;
-
-                        lA.y = 1f - lA.y;
-                        lB.y = 1f - lB.y;
-                        lC.y = 1f - lC.y;
-
-                        lUV[meshdata.triangles[u][t]] = lA;
-                        lUV[meshdata.triangles[u][t + 1]] = lB;
-                        lUV[meshdata.triangles[u][t + 2]] = lC;
+                        lMesh.SetTriangles(meshdata.triangles[r][s], s);
                     }
-                }
-                lMesh.uv = lUV;
-                meshdata.resultMesh = lMesh;
 
-                AddStatus("Generated new Mesh!");
+                    lMesh.uv = new Vector2[meshdata.mesh[r].uv.Length];
+                    Vector2[] lUV = new Vector2[meshdata.mesh[r].uv.Length];
+
+                    for (int u = 0; u < meshdata.materials.Count; u++)
+                    {
+                        Rect lRect = lPos[u];
+                        if (meshdata.boundMaterials[u] != r)
+                        {
+                            continue;
+                        }
+                        int lM = meshdata.materialLib[r][u];
+                        for (int t = 0; t < meshdata.triangles[r][lM].Count - 2; t += 3)
+                        {
+                            Vector2 lA = meshdata.mesh[r].uv[meshdata.triangles[r][lM][t]];
+                            Vector2 lB = meshdata.mesh[r].uv[meshdata.triangles[r][lM][t + 1]];
+                            Vector2 lC = meshdata.mesh[r].uv[meshdata.triangles[r][lM][t + 2]];
+
+                            lA.y = 1f - lA.y;
+                            lB.y = 1f - lB.y;
+                            lC.y = 1f - lC.y;
+
+                            lA.x *= lRect.width;
+                            lA.y *= lRect.height;
+                            lA += lRect.position;
+
+                            lB.x *= lRect.width;
+                            lB.y *= lRect.height;
+                            lB += lRect.position;
+
+                            lC.x *= lRect.width;
+                            lC.y *= lRect.height;
+                            lC += lRect.position;
+
+                            lA.y = 1f - lA.y;
+                            lB.y = 1f - lB.y;
+                            lC.y = 1f - lC.y;
+
+                            lUV[meshdata.triangles[r][lM][t]] = lA;
+                            lUV[meshdata.triangles[r][lM][t + 1]] = lB;
+                            lUV[meshdata.triangles[r][lM][t + 2]] = lC;
+                        }
+                    }
+                    lMesh.uv = lUV;
+                    meshdata.resultMesh[r] = lMesh;
+                }
+
+                AddStatus("Generated new " + (renderer.Count > 1 ? "Meshes!" : "Mesh!"));
                 return 1f / lSteps;
             }
             if (meshdata.resultMaterials == null)
             {
-                meshdata.resultMaterials = new Material[meshdata.materials.Length];
+                meshdata.resultMaterials = new Material[meshdata.materials.Count];
 
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     meshdata.resultMaterials[m] = Object.Instantiate(meshdata.materials[m]) as Material;
 
@@ -1030,21 +1181,23 @@ namespace Northwind.AtlasGen
             float lSteps = 8f;
             if (meshdata.folderRoot == null)
             {
-                string lRendererPath = AssetDatabase.GetAssetPath(renderer);
+                string lRendererPath = AssetDatabase.GetAssetPath(renderer[0]);
 
-                meshdata.fileEnding = lRendererPath.Replace(renderer.name, "");
+                string lFolderName = saveName == "" ? renderer[0].name : saveName;
+
+                meshdata.fileEnding = lRendererPath.Replace(renderer[0].name, "");
                 string[] lParts = meshdata.fileEnding.Split('/');
                 meshdata.fileEnding = lParts[lParts.Length - 1].Replace(".", "");
 
-                string lTargetPath = lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + renderer.name + "_AtlasData";
+                string lTargetPath = lRendererPath.Replace(renderer[0].name + "." + meshdata.fileEnding, "") + lFolderName + "_AtlasData";
                 bool lGiven = AssetDatabase.IsValidFolder(lTargetPath);
 
-                if (saveOption == SaveOptions.Replace && lGiven)
+                if ((saveOption == SaveOptions.ReplacePrefab || saveOption == SaveOptions.ReplaceGenerated) && lGiven)
                 {
                     AssetDatabase.DeleteAsset(lTargetPath);
                 }
 
-                string guid = AssetDatabase.CreateFolder(lRendererPath, renderer.name + "_AtlasData");
+                string guid = AssetDatabase.CreateFolder(lRendererPath, lFolderName + "_AtlasData");
                 meshdata.folderRoot = AssetDatabase.GUIDToAssetPath(guid);
                 AssetDatabase.CreateFolder(meshdata.folderRoot, "Atlas_Textures");
                 AssetDatabase.CreateFolder(meshdata.folderRoot, "Atlas_Materials");
@@ -1054,12 +1207,17 @@ namespace Northwind.AtlasGen
             }
             if (!meshdata.savedMesh)
             {
-                string lPath = meshdata.folderRoot + "/" + meshdata.mesh.name + "_AtlasMesh.Asset";
-                AssetDatabase.CreateAsset(meshdata.resultMesh, lPath);
-                AssetDatabase.Refresh();
-                meshdata.meshPath = lPath;
-                meshdata.savedMesh = true;
-                AddStatus("Saved Mesh!");
+                meshdata.meshPath = new string[renderer.Count];
+                for (int r = 0; r < renderer.Count; r++)
+                {
+                    string lPath = meshdata.folderRoot + "/" + meshdata.mesh[r].name + "_AtlasMesh.Asset";
+                    lPath = AssetDatabase.GenerateUniqueAssetPath(lPath);
+                    AssetDatabase.CreateAsset(meshdata.resultMesh[r], lPath);
+                    AssetDatabase.Refresh();
+                    meshdata.meshPath[r] = lPath;
+                    meshdata.savedMesh = true;
+                }
+                AddStatus("Saved " + (renderer.Count > 1 ? "Meshes!" : "Mesh!"));
                 return 2f / lSteps;
             }
             if (!meshdata.savedTextures)
@@ -1088,7 +1246,7 @@ namespace Northwind.AtlasGen
                     meshdata.texturePaths.Add(meshdata.setProperties[p], lPath);
                 }
 
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
                     {
@@ -1131,7 +1289,7 @@ namespace Northwind.AtlasGen
                     }
                     lImporter.SaveAndReimport();
 
-                    for (int m = 0; m < meshdata.materials.Length; m++)
+                    for (int m = 0; m < meshdata.materials.Count; m++)
                     {
                         if (!meshdata.oldTexturePaths[m].ContainsKey(meshdata.setProperties[p]))
                         {
@@ -1155,7 +1313,7 @@ namespace Northwind.AtlasGen
                     }
                 }
 
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
                     {
@@ -1209,7 +1367,7 @@ namespace Northwind.AtlasGen
             }
             if (!meshdata.rebindTextures)
             {
-                for (int m = 0; m < meshdata.materials.Length; m++)
+                for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     meshdata.resultMaterials[m] = Object.Instantiate(meshdata.materials[m]) as Material;
 
@@ -1240,7 +1398,7 @@ namespace Northwind.AtlasGen
 
                 switch (saveOption)
                 {
-                    case SaveOptions.Replace:
+                    case SaveOptions.ReplacePrefab:
                         if (meshdata.fileEnding == "prefab")
                         {
                             meshdata.updateOriginal = true;
@@ -1249,11 +1407,14 @@ namespace Northwind.AtlasGen
                         else
                         {
                             AddStatus("  ->   Cannot Update a Model Importer!");
-                            AddStatus("         ->   New Prefab will be generated");
+                            AddStatus("         ->   New Prefab will be generated or updated");
                         }
                         break;
                     case SaveOptions.GenerateNew:
                         AddStatus("  ->   New Prefab will be generated");
+                        break;
+                    case SaveOptions.ReplaceGenerated:
+                        AddStatus("  ->   New Prefab will be generated or updated");
                         break;
                 }
 
@@ -1264,56 +1425,67 @@ namespace Northwind.AtlasGen
             {
                 if (meshdata.updateOriginal)
                 {
-                    Material[] lMats = new Material[meshdata.resultMaterials.Length];
-                    for (int m = 0; m < meshdata.resultMaterials.Length; m++)
+                    for (int r = 0; r < renderer.Count; r++)
                     {
-                        Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
-                        lMats[m] = lMaterial;
+                        Material[] lMats = new Material[renderer[r].sharedMaterials.Length];
+                        for (int m = 0; m < meshdata.resultMaterials.Length; m++)
+                        {
+                            if (meshdata.boundMaterials[m] == r)
+                            {
+                                Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
+                                lMats[meshdata.materialLib[r][m]] = lMaterial;
+                            }
+                        }
+                        renderer[r].sharedMaterials = lMats;
+                        meshdata.filter[r].sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath[r]);
+                        AssetDatabase.Refresh();
                     }
-                    renderer.sharedMaterials = lMats;
-                    meshdata.filter.sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath);
-                    AssetDatabase.Refresh();
                 }
                 else
                 {
-                    GameObject lGO = new GameObject(renderer.name + "_AtlasVersion");
-                    MeshFilter lFilter = lGO.AddComponent<MeshFilter>();
-                    MeshRenderer lRenderer = lGO.AddComponent<MeshRenderer>();
-
-                    Material[] lMats = new Material[meshdata.resultMaterials.Length];
-                    for (int m = 0; m < meshdata.resultMaterials.Length; m++)
+                    for (int r = 0; r < renderer.Count; r++)
                     {
-                        Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
-                        lMats[m] = lMaterial;
-                    }
-                    lRenderer.sharedMaterials = lMats;
-                    lFilter.sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath);
+                        GameObject lGO = new GameObject(renderer[r].name + "_AtlasVersion");
+                        MeshFilter lFilter = lGO.AddComponent<MeshFilter>();
+                        MeshRenderer lRenderer = lGO.AddComponent<MeshRenderer>();
 
-                    string lRendererPath = AssetDatabase.GetAssetPath(renderer);
-
-
-                    GameObject lObj = (GameObject)AssetDatabase.LoadMainAssetAtPath(lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab");
-                    if (lObj == null)
-                    {
-                        PrefabUtility.CreatePrefab(lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab", lGO, ReplacePrefabOptions.Default);
-                    }
-                    else
-                    {
-                        if (saveOption == SaveOptions.GenerateNew)
+                        Material[] lMats = new Material[renderer[r].sharedMaterials.Length];
+                        for (int m = 0; m < meshdata.resultMaterials.Length; m++)
                         {
-                            string newPath = AssetDatabase.GenerateUniqueAssetPath(lRendererPath.Replace(renderer.name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab");
+                            if (meshdata.boundMaterials[m] == r)
+                            {
+                                Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
+                                lMats[meshdata.materialLib[r][m]] = lMaterial;
+                            }
+                        }
+                        lRenderer.sharedMaterials = lMats;
+                        lFilter.sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath[r]);
 
-                            PrefabUtility.CreatePrefab(newPath, lGO, ReplacePrefabOptions.Default);
+                        string lRendererPath = AssetDatabase.GetAssetPath(renderer[0]);
+                        
+                        GameObject lObj = (GameObject)AssetDatabase.LoadMainAssetAtPath(lRendererPath.Replace(renderer[0].name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab");
+                        if (lObj == null)
+                        {
+                            PrefabUtility.CreatePrefab(lRendererPath.Replace(renderer[0].name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab", lGO, ReplacePrefabOptions.Default);
                         }
                         else
                         {
-                            lObj.GetComponent<MeshRenderer>().sharedMaterials = lMats;
-                            lObj.GetComponent<MeshFilter>().sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath);
-                        }
-                    }
-                    AssetDatabase.Refresh();
+                            if (saveOption == SaveOptions.GenerateNew)
+                            {
+                                string newPath = AssetDatabase.GenerateUniqueAssetPath(lRendererPath.Replace(renderer[0].name + "." + meshdata.fileEnding, "") + lGO.name + ".prefab");
 
-                    DestroyImmediate(lGO);
+                                PrefabUtility.CreatePrefab(newPath, lGO, ReplacePrefabOptions.Default);
+                            }
+                            else
+                            {
+                                lObj.GetComponent<MeshRenderer>().sharedMaterials = lMats;
+                                lObj.GetComponent<MeshFilter>().sharedMesh = (Mesh)AssetDatabase.LoadMainAssetAtPath(meshdata.meshPath[r]);
+                            }
+                        }
+                        AssetDatabase.Refresh();
+
+                        DestroyImmediate(lGO);
+                    }
                 }
                 meshdata.finished = true;
                 return 8f / lSteps;
