@@ -45,6 +45,9 @@ namespace Northwind.AtlasGen
 
         GUIStyle bigCenteredLabel, boldCenteredLabel, bigButton;
 
+        private string normalMapShader = "Hidden/AtlasGen/NormalMapShader";
+        private string blurShader = "Hidden/FastBlur";
+
         [MenuItem("Northwind/Atlas Generator/Mesh Auto Atlas")]
         static void Init()
         {
@@ -1029,6 +1032,7 @@ namespace Northwind.AtlasGen
                             RenderTexture.active = lRenderTexture;
                             lNewTexture.ReadPixels(new Rect(0, 0, lRenderTexture.width, lRenderTexture.height), 0, 0);
                             lNewTexture.Apply();
+                            lNewTexture.name = lTexture.name;
                             meshdata.textures[m][meshdata.setProperties[p]] = lNewTexture;
 
                         }
@@ -1049,6 +1053,7 @@ namespace Northwind.AtlasGen
                             RenderTexture.active = lRenderTexture;
                             lNewTexture.ReadPixels(new Rect(0, 0, lRenderTexture.width, lRenderTexture.height), 0, 0);
                             lNewTexture.Apply();
+                            lNewTexture.name = lTexture.name;
                             meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]] = lNewTexture;
                         }
                     }
@@ -1069,6 +1074,42 @@ namespace Northwind.AtlasGen
                     {
                         lTextures.Add((Texture2D)meshdata.textures[m][meshdata.setProperties[p]]);
                     }
+
+                    for (int t = 0; t < lTextures.Count; t++)
+                    {
+                        RenderTexture lTexture = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
+                        RenderTexture lTextureB = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
+                        Material nmMat = new Material(Shader.Find(normalMapShader));
+                        Material blurMat = new Material(Shader.Find(blurShader));
+                        
+                        if (meshdata.textureIsNormalMap.ContainsKey(meshdata.setProperties[p]) && meshdata.textureIsNormalMap[meshdata.setProperties[p]] && meshdata.normalMapStrength.ContainsKey(lTextures[t].name) && meshdata.normalMapStrength[lTextures[t].name] > 0f)
+                        {
+                            float lStrength = meshdata.normalMapStrength[lTextures[t].name];
+                            nmMat.SetFloat("_Strength", (lStrength / 0.3f) * 100f);
+
+                            blurMat.SetVector("_Parameter", new Vector4(0f, 0f, 0f, 0f));
+
+                            RenderTexture lTempBuffer = RenderTexture.GetTemporary(lTexture.width, lTexture.height);
+
+                            Graphics.Blit(lTextures[t], lTempBuffer, blurMat, 0);
+                            Graphics.Blit(lTempBuffer, lTexture);
+                            Graphics.Blit(lTexture, lTempBuffer, blurMat, 1);
+                            Graphics.Blit(lTempBuffer, lTexture);
+                            Graphics.Blit(lTexture, lTextureB, blurMat, 2);
+
+                            lTempBuffer.Release();
+
+                            Graphics.Blit(lTextureB, lTexture, nmMat);
+                            
+
+                            RenderTexture.active = lTexture;
+                            lTextures[t].ReadPixels(new Rect(0, 0, lTextureB.width, lTextureB.height), 0, 0);
+                            lTextures[t].Apply();
+                        }
+                        RenderTexture.ReleaseTemporary(lTextureB);
+                        RenderTexture.ReleaseTemporary(lTexture);
+                    }
+
                     resultTexture = new RenderTexture(resultSize, resultSize, 0);
                     previewTexture = new RenderTexture(resultSize, resultSize, 0);
 
@@ -1106,6 +1147,42 @@ namespace Northwind.AtlasGen
                                 lTextures.Add(new Texture2D(meshdata.texSize[mt], meshdata.texSize[mt]));
                             }
                         }
+                        
+                        for (int t = 0; t < lTextures.Count; t++)
+                        {
+                            RenderTexture lTexture = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
+                            RenderTexture lTextureB = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
+                            Material nmMat = new Material(Shader.Find(normalMapShader));
+                            Material blurMat = new Material(Shader.Find(blurShader));
+                            
+                            if (meshdata.textureIsNormalMap.ContainsKey(meshdata.nicFilledProperties[m][p]) && meshdata.textureIsNormalMap[meshdata.nicFilledProperties[m][p]] && meshdata.normalMapStrength.ContainsKey(lTextures[t].name) && meshdata.normalMapStrength[lTextures[t].name] > 0f)
+                            {
+                                float lStrength = meshdata.normalMapStrength[lTextures[t].name];
+                                nmMat.SetFloat("_Strength", (lStrength / 0.3f) * 100f);
+
+                                blurMat.SetVector("_Parameter", new Vector4(0f, 0f, 0f, 0f));
+
+                                RenderTexture lTempBuffer = RenderTexture.GetTemporary(lTexture.width, lTexture.height);
+
+                                Graphics.Blit(lTextures[t], lTempBuffer, blurMat, 0);
+                                Graphics.Blit(lTempBuffer, lTexture);
+                                Graphics.Blit(lTexture, lTempBuffer, blurMat, 1);
+                                Graphics.Blit(lTempBuffer, lTexture);
+                                Graphics.Blit(lTexture, lTextureB, blurMat, 2);
+
+                                lTempBuffer.Release();
+
+                                Graphics.Blit(lTextureB, lTexture, nmMat);
+
+
+                                RenderTexture.active = lTexture;
+                                lTextures[t].ReadPixels(new Rect(0, 0, lTextureB.width, lTextureB.height), 0, 0);
+                                lTextures[t].Apply();
+                            }
+                            RenderTexture.ReleaseTemporary(lTextureB);
+                            RenderTexture.ReleaseTemporary(lTexture);
+                        }
+
                         resultTexture = new RenderTexture(resultSize, resultSize, 0);
                         previewTexture = new RenderTexture(resultSize, resultSize, 0);
                         
@@ -1361,10 +1438,11 @@ namespace Northwind.AtlasGen
                             if (meshdata.textureIsNormalMap[meshdata.setProperties[p]])
                             {
                                 lOldImporter.textureType = TextureImporterType.NormalMap;
-                                if (meshdata.normalMapStrength.ContainsKey(meshdata.setProperties[p]) && meshdata.normalMapStrength[meshdata.setProperties[p]] > 0f)
+                                string lName = AssetDatabase.LoadAssetAtPath<Texture>(lPath).name;
+                                if (meshdata.normalMapStrength.ContainsKey(lName) && meshdata.normalMapStrength[lName] > 0f)
                                 {
                                     lOldImporter.convertToNormalmap = true;
-                                    lOldImporter.heightmapScale = meshdata.normalMapStrength[meshdata.setProperties[p]];
+                                    lOldImporter.heightmapScale = meshdata.normalMapStrength[lName];
                                 }
                             }
                             lOldImporter.SaveAndReimport();
@@ -1395,10 +1473,11 @@ namespace Northwind.AtlasGen
                             if (meshdata.textureIsNormalMap[meshdata.nicFilledProperties[m][p]])
                             {
                                 lOldImporter.textureType = TextureImporterType.NormalMap;
-                                if (meshdata.normalMapStrength[meshdata.nicFilledProperties[m][p]] > 0f)
+                                string lName = AssetDatabase.LoadAssetAtPath<Texture>(lPath).name;
+                                if (meshdata.normalMapStrength.ContainsKey(lName) && meshdata.normalMapStrength[lName] > 0f)
                                 {
                                     lOldImporter.convertToNormalmap = true;
-                                    lOldImporter.heightmapScale = meshdata.normalMapStrength[meshdata.nicFilledProperties[m][p]];
+                                    lOldImporter.heightmapScale = meshdata.normalMapStrength[lName];
                                 }
                             }
                             lOldImporter.SaveAndReimport();
@@ -1432,7 +1511,8 @@ namespace Northwind.AtlasGen
 
                     for (int p = 0; p < meshdata.setProperties.Count; p++)
                     {
-                        Texture lTexture = (Texture)AssetDatabase.LoadMainAssetAtPath(meshdata.texturePaths[meshdata.setProperties[p]]);
+                        string lPath = meshdata.texturePaths[meshdata.setProperties[p]];
+                        Texture lTexture = (Texture)AssetDatabase.LoadMainAssetAtPath(lPath);
                         Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
                         lMaterial.SetTexture(meshdata.setProperties[p], lTexture);
                         AssetDatabase.Refresh();
@@ -1440,7 +1520,8 @@ namespace Northwind.AtlasGen
 
                     for (int p = 0; p < meshdata.nicFilledProperties[m].Count; p++)
                     {
-                        Texture lTexture = (Texture)AssetDatabase.LoadMainAssetAtPath(meshdata.texturePaths[meshdata.nicFilledProperties[m][p]]);
+                        string lPath = meshdata.texturePaths[meshdata.nicFilledProperties[m][p]];
+                        Texture lTexture = (Texture)AssetDatabase.LoadMainAssetAtPath(lPath);
                         Material lMaterial = (Material)AssetDatabase.LoadMainAssetAtPath(meshdata.materialPaths[m]);
                         lMaterial.SetTexture(meshdata.nicFilledProperties[m][p], lTexture);
                         AssetDatabase.Refresh();

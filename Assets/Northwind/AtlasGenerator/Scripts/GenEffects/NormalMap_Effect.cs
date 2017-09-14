@@ -15,7 +15,7 @@ namespace Northwind.AtlasGen
         public override void BlitEffect(RenderTexture src, RenderTexture dest)
         {
             Material nmMat = new Material(Shader.Find(normalMapShader));
-            nmMat.SetFloat("_Strength", strength * 200f);
+            nmMat.SetFloat("_Strength", (strength / 0.3f) * 100f);
 
             Graphics.Blit(src, dest, nmMat);
         }
