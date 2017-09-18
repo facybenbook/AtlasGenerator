@@ -348,7 +348,42 @@ namespace Northwind.AtlasGen
 
         void UpdateTexture()
         {
+            List<bool> lOldValues = LinearizeTextures(textures);
             TextureOperator.UpdateTexture(textures, resultSize, ref resultTexture, ref previewTexture, interpolationMethod, effects);
+            OriginalizeTextures(textures, lOldValues);
+        }
+
+        List<bool> LinearizeTextures(IEnumerable<Texture2D> textures)
+        {
+            List<bool> lOldValues = new List<bool>();
+
+            List<Texture2D> lTextures = new List<Texture2D>(textures);
+
+            for (int t = 0; t < lTextures.Count; t++)
+            {
+                string lPath = AssetDatabase.GetAssetPath(lTextures[t]);
+                TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
+                lOldValues.Add(lImporter.sRGBTexture);
+                lImporter.sRGBTexture = false;
+                lImporter.SaveAndReimport();
+            }
+
+            return lOldValues;
+        }
+
+
+        void OriginalizeTextures(IEnumerable<Texture2D> textures, IEnumerable<bool> values)
+        {
+            List<Texture2D> lTextures = new List<Texture2D>(textures);
+            List<bool> lValues = new List<bool>(values);
+
+            for (int t = 0; t < lTextures.Count; t++)
+            {
+                string lPath = AssetDatabase.GetAssetPath(lTextures[t]);
+                TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(lPath);
+                lImporter.sRGBTexture = lValues[t];
+                lImporter.SaveAndReimport();
+            }
         }
     }
 }

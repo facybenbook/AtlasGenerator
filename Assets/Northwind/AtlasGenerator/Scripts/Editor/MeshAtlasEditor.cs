@@ -19,6 +19,9 @@ namespace Northwind.AtlasGen
         private enum SaveOptions { ReplacePrefab, ReplaceGenerated, GenerateNew };
         private SaveOptions saveOption = SaveOptions.ReplaceGenerated;
 
+        private enum SRGBOptions { Unique, sRGBPrio, LinearPrio}
+        private SRGBOptions sRGBOption = SRGBOptions.sRGBPrio;
+
         string saveName = "";
 
         bool debugDetails;
@@ -179,6 +182,8 @@ namespace Northwind.AtlasGen
             lLastY = 4f;
             float lLastX = (lCenter.x / 2f);
             saveName = EditorGUI.TextField(new Rect(lLastX + 4f, lLastY, lLastX - 8f, 16f), new GUIContent("Save Name"), saveName);
+            lLastY += 20f;
+            sRGBOption = (SRGBOptions)EditorGUI.EnumPopup(new Rect(lLastX + 4f, lLastY, (lCenter.x / 2f) - 4f, 16f), new GUIContent("sRGB Option"), sRGBOption);
 
             EditorGUI.EndDisabledGroup();
 
@@ -640,7 +645,7 @@ namespace Northwind.AtlasGen
 
         float CollectMaterialInformation()
         {
-            float lSteps = 10f;
+            float lSteps = 11f;
 
             if (meshdata.materials == null)
             {
@@ -899,6 +904,7 @@ namespace Northwind.AtlasGen
                             {
                                 lConvert = true;
                                 lImporter.textureType = TextureImporterType.Default;
+                                lImporter.sRGBTexture = false;
                                 lImporter.SaveAndReimport();
                             }
                         }
@@ -937,6 +943,7 @@ namespace Northwind.AtlasGen
                             {
                                 lConvert = true;
                                 lImporter.textureType = TextureImporterType.Default;
+                                lImporter.sRGBTexture = false;
                                 lImporter.SaveAndReimport();
                             }
                         }
@@ -956,13 +963,45 @@ namespace Northwind.AtlasGen
                 AddStatus("Checked for Normal Maps!");
                 return 10f / lSteps;
             }
+            if (meshdata.oldSRGBValues == null)
+            {
+                meshdata.oldSRGBValues = new Dictionary<string, bool>();
+
+                for (int m = 0; m < meshdata.materials.Count; m++)
+                {
+
+                    for (int sp = 0; sp < meshdata.setProperties.Count; sp++)
+                    {
+                        if (!meshdata.oldSRGBValues.ContainsKey(meshdata.oldTexturePaths[m][meshdata.setProperties[sp]]))
+                        {
+                            TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(meshdata.oldTexturePaths[m][meshdata.setProperties[sp]]);
+                            meshdata.oldSRGBValues.Add(meshdata.oldTexturePaths[m][meshdata.setProperties[sp]], lImporter.sRGBTexture);
+                            lImporter.sRGBTexture = false;
+                            lImporter.SaveAndReimport();
+                        }
+                    }
+                    for (int np = 0; np < meshdata.nicFilledProperties[m].Count; np++)
+                    {
+                        if (!meshdata.oldSRGBValues.ContainsKey(meshdata.oldTexturePaths[m][meshdata.nicFilledProperties[m][np]]))
+                        {
+                            TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(meshdata.oldTexturePaths[m][meshdata.nicFilledProperties[m][np]]);
+                            meshdata.oldSRGBValues.Add(meshdata.oldTexturePaths[m][meshdata.nicFilledProperties[m][np]], lImporter.sRGBTexture);
+                            lImporter.sRGBTexture = false;
+                            lImporter.SaveAndReimport();
+                        }
+                    }
+                }
+
+                AddStatus("Checked for sRGB Values!");
+                return 11f / lSteps;
+            }
 
             return 1f;
         }
 
         float ProcessTextureData()
         {
-            float lSteps = 4f;
+            float lSteps = 5f;
             if (meshdata.texSize == null)
             {
                 AddStatus("Chosen Size Mode: " + preferredSize.ToString());
@@ -1019,13 +1058,13 @@ namespace Northwind.AtlasGen
                 for (int m = 0; m < meshdata.materials.Count; m++)
                 {
                     int lSize = meshdata.texSize[m];
-                    RenderTexture lRenderTexture = RenderTexture.GetTemporary(lSize, lSize);
+                    RenderTexture lRenderTexture = RenderTexture.GetTemporary(lSize, lSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
                     for (int p = 0; p < meshdata.setProperties.Count; p++)
                     {
                         Texture lTexture = meshdata.textures[m][meshdata.setProperties[p]];
                         if (lTexture != null)
                         {
-                            Texture2D lNewTexture = new Texture2D(lSize, lSize);
+                            Texture2D lNewTexture = new Texture2D(lSize, lSize, TextureFormat.ARGB32, false, true);
 
                             Graphics.Blit(lTexture, lRenderTexture);
 
@@ -1034,7 +1073,6 @@ namespace Northwind.AtlasGen
                             lNewTexture.Apply();
                             lNewTexture.name = lTexture.name;
                             meshdata.textures[m][meshdata.setProperties[p]] = lNewTexture;
-
                         }
                         else
                         {
@@ -1046,7 +1084,7 @@ namespace Northwind.AtlasGen
                         Texture lTexture = meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]];
                         if (lTexture != null)
                         {
-                            Texture2D lNewTexture = new Texture2D(lSize, lSize);
+                            Texture2D lNewTexture = new Texture2D(lSize, lSize, TextureFormat.ARGB32, false, true);
 
                             Graphics.Blit(lTexture, lRenderTexture);
 
@@ -1067,18 +1105,52 @@ namespace Northwind.AtlasGen
             {
                 AddStatus("Generate Atlas Textures:");
                 meshdata.textureAtlas = new Dictionary<string, Texture>();
+                meshdata.isSRGB = new Dictionary<string, bool>();
                 for (int p = 0; p < meshdata.setProperties.Count; p++)
                 {
                     List<Texture2D> lTextures = new List<Texture2D>();
                     for (int m = 0; m < meshdata.materials.Count; m++)
                     {
-                        lTextures.Add((Texture2D)meshdata.textures[m][meshdata.setProperties[p]]);
+                        if (meshdata.oldSRGBValues[meshdata.oldTexturePaths[m][meshdata.setProperties[p]]])
+                        {
+                            if (sRGBOption == SRGBOptions.Unique)
+                            {
+                                Texture lOld = meshdata.textures[m][meshdata.setProperties[p]];
+                                RenderTexture lSRGBTexture = RenderTexture.GetTemporary(lOld.width, lOld.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+                                RenderTexture lLinearTexture = RenderTexture.GetTemporary(lOld.width, lOld.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+
+                                Graphics.Blit(lOld, lSRGBTexture);
+                                Graphics.Blit(lSRGBTexture, lLinearTexture);
+
+                                RenderTexture.active = lLinearTexture;
+                                Texture2D lN = new Texture2D(lOld.width, lOld.height, TextureFormat.ARGB32, false, true);
+                                lN.ReadPixels(new Rect(0, 0, lLinearTexture.width, lLinearTexture.height), 0, 0);
+                                lN.Apply();
+
+                                lN.name = lOld.name;
+
+                                RenderTexture.ReleaseTemporary(lLinearTexture);
+                                RenderTexture.ReleaseTemporary(lSRGBTexture);
+
+                                lTextures.Add(lN);
+                            } else if (!meshdata.isSRGB.ContainsKey(meshdata.setProperties[p]))
+                            {
+                                lTextures.Add((Texture2D)meshdata.textures[m][meshdata.setProperties[p]]);
+                                meshdata.isSRGB.Add(meshdata.setProperties[p], sRGBOption == SRGBOptions.sRGBPrio);
+                            } else
+                            {
+                                lTextures.Add((Texture2D)meshdata.textures[m][meshdata.setProperties[p]]);
+                            }
+                        } else
+                        {
+                            lTextures.Add((Texture2D)meshdata.textures[m][meshdata.setProperties[p]]);
+                        }
                     }
 
                     for (int t = 0; t < lTextures.Count; t++)
                     {
-                        RenderTexture lTexture = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
-                        RenderTexture lTextureB = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
+                        RenderTexture lTexture = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                        RenderTexture lTextureB = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
                         Material nmMat = new Material(Shader.Find(normalMapShader));
                         Material blurMat = new Material(Shader.Find(blurShader));
                         
@@ -1089,7 +1161,7 @@ namespace Northwind.AtlasGen
 
                             blurMat.SetVector("_Parameter", new Vector4(0f, 0f, 0f, 0f));
 
-                            RenderTexture lTempBuffer = RenderTexture.GetTemporary(lTexture.width, lTexture.height);
+                            RenderTexture lTempBuffer = RenderTexture.GetTemporary(lTexture.width, lTexture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 
                             Graphics.Blit(lTextures[t], lTempBuffer, blurMat, 0);
                             Graphics.Blit(lTempBuffer, lTexture);
@@ -1105,13 +1177,15 @@ namespace Northwind.AtlasGen
                             RenderTexture.active = lTexture;
                             lTextures[t].ReadPixels(new Rect(0, 0, lTextureB.width, lTextureB.height), 0, 0);
                             lTextures[t].Apply();
+
+                            RenderTexture.ReleaseTemporary(lTempBuffer);
                         }
                         RenderTexture.ReleaseTemporary(lTextureB);
                         RenderTexture.ReleaseTemporary(lTexture);
                     }
 
-                    resultTexture = new RenderTexture(resultSize, resultSize, 0);
-                    previewTexture = new RenderTexture(resultSize, resultSize, 0);
+                    resultTexture = new RenderTexture(resultSize, resultSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                    previewTexture = new RenderTexture(resultSize, resultSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 
                     List<IAtlasGenEffect> lEffects = new List<IAtlasGenEffect>();
                     TextureOperator.UpdateTexture(lTextures, resultSize, ref resultTexture, ref previewTexture, TextureOperator.InterpolatingMethods.Unique, lEffects);
@@ -1140,7 +1214,43 @@ namespace Northwind.AtlasGen
                         {
                             if (mt == m)
                             {
-                                lTextures.Add((Texture2D)meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]]);
+
+                                if (meshdata.oldSRGBValues[meshdata.oldTexturePaths[m][meshdata.nicFilledProperties[m][p]]])
+                                {
+                                    if (sRGBOption == SRGBOptions.Unique)
+                                    {
+                                        Texture lOld = meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]];
+                                        RenderTexture lSRGBTexture = RenderTexture.GetTemporary(lOld.width, lOld.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+                                        RenderTexture lLinearTexture = RenderTexture.GetTemporary(lOld.width, lOld.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+
+                                        Graphics.Blit(lOld, lSRGBTexture);
+                                        Graphics.Blit(lSRGBTexture, lLinearTexture);
+
+                                        RenderTexture.active = lLinearTexture;
+                                        Texture2D lN = new Texture2D(lOld.width, lOld.height, TextureFormat.ARGB32, false, true);
+                                        lN.ReadPixels(new Rect(0, 0, lLinearTexture.width, lLinearTexture.height), 0, 0);
+                                        lN.Apply();
+
+                                        lN.name = lOld.name;
+
+                                        RenderTexture.ReleaseTemporary(lLinearTexture);
+                                        RenderTexture.ReleaseTemporary(lSRGBTexture);
+
+                                        lTextures.Add(lN);
+                                    }
+                                    else if (!meshdata.isSRGB.ContainsKey(meshdata.nicFilledProperties[m][p]))
+                                    {
+                                        lTextures.Add((Texture2D)meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]]);
+                                        meshdata.isSRGB.Add(meshdata.nicFilledProperties[m][p], sRGBOption == SRGBOptions.sRGBPrio);
+                                    } else
+                                    {
+                                        lTextures.Add((Texture2D)meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]]);
+                                    }
+                                }
+                                else
+                                {
+                                    lTextures.Add((Texture2D)meshdata.observeTextures[m][meshdata.nicFilledProperties[m][p]]);
+                                }
                             }
                             else
                             {
@@ -1150,8 +1260,8 @@ namespace Northwind.AtlasGen
                         
                         for (int t = 0; t < lTextures.Count; t++)
                         {
-                            RenderTexture lTexture = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
-                            RenderTexture lTextureB = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height);
+                            RenderTexture lTexture = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                            RenderTexture lTextureB = RenderTexture.GetTemporary(lTextures[t].width, lTextures[t].height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
                             Material nmMat = new Material(Shader.Find(normalMapShader));
                             Material blurMat = new Material(Shader.Find(blurShader));
                             
@@ -1162,7 +1272,7 @@ namespace Northwind.AtlasGen
 
                                 blurMat.SetVector("_Parameter", new Vector4(0f, 0f, 0f, 0f));
 
-                                RenderTexture lTempBuffer = RenderTexture.GetTemporary(lTexture.width, lTexture.height);
+                                RenderTexture lTempBuffer = RenderTexture.GetTemporary(lTexture.width, lTexture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 
                                 Graphics.Blit(lTextures[t], lTempBuffer, blurMat, 0);
                                 Graphics.Blit(lTempBuffer, lTexture);
@@ -1178,13 +1288,15 @@ namespace Northwind.AtlasGen
                                 RenderTexture.active = lTexture;
                                 lTextures[t].ReadPixels(new Rect(0, 0, lTextureB.width, lTextureB.height), 0, 0);
                                 lTextures[t].Apply();
+
+                                RenderTexture.ReleaseTemporary(lTempBuffer);
                             }
                             RenderTexture.ReleaseTemporary(lTextureB);
                             RenderTexture.ReleaseTemporary(lTexture);
                         }
 
-                        resultTexture = new RenderTexture(resultSize, resultSize, 0);
-                        previewTexture = new RenderTexture(resultSize, resultSize, 0);
+                        resultTexture = new RenderTexture(resultSize, resultSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+                        previewTexture = new RenderTexture(resultSize, resultSize, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
                         
                         TextureOperator.UpdateTexture(lTextures, resultSize, ref resultTexture, ref previewTexture, TextureOperator.InterpolatingMethods.Unique, new List<IAtlasGenEffect>());
 
@@ -1198,6 +1310,28 @@ namespace Northwind.AtlasGen
                 }
                 AddStatus("Generated Observed Atlas Textures");
                 return 4f / lSteps;
+            }
+            if (meshdata.sRGBReturned == false)
+            {
+                for (int m = 0; m < meshdata.materials.Count; m++)
+                {
+                    for (int sp = 0; sp < meshdata.setProperties.Count; sp++)
+                    {
+                        TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(meshdata.oldTexturePaths[m][meshdata.setProperties[sp]]);
+                        lImporter.sRGBTexture = meshdata.oldSRGBValues[meshdata.oldTexturePaths[m][meshdata.setProperties[sp]]];
+                        lImporter.SaveAndReimport();
+                    }
+                    for (int np = 0; np < meshdata.nicFilledProperties[m].Count; np++)
+                    {
+                        TextureImporter lImporter = (TextureImporter)TextureImporter.GetAtPath(meshdata.oldTexturePaths[m][meshdata.nicFilledProperties[m][np]]);
+                        lImporter.sRGBTexture = meshdata.oldSRGBValues[meshdata.oldTexturePaths[m][meshdata.nicFilledProperties[m][np]]];
+                        lImporter.SaveAndReimport();
+                    }
+                }
+
+                meshdata.sRGBReturned = true;
+                AddStatus("Reset sRGB Values!");
+                return 5f / lSteps;
             }
             return 1f;
         }
@@ -1377,6 +1511,10 @@ namespace Northwind.AtlasGen
                     textureImporter.alphaIsTransparency = true;
                     textureImporter.mipmapEnabled = false;
                     textureImporter.wrapMode = TextureWrapMode.Clamp;
+
+                    textureImporter.sRGBTexture = (meshdata.isSRGB.ContainsKey(meshdata.setProperties[p]) && meshdata.isSRGB[meshdata.setProperties[p]] == true);
+
+                    //textureImporter.sRGBTexture = false;
                     textureImporter.SaveAndReimport();
 
                     meshdata.texturePaths.Add(meshdata.setProperties[p], lPath);
@@ -1401,6 +1539,10 @@ namespace Northwind.AtlasGen
                         textureImporter.alphaIsTransparency = true;
                         textureImporter.mipmapEnabled = false;
                         textureImporter.wrapMode = TextureWrapMode.Clamp;
+                        
+                        textureImporter.sRGBTexture = (meshdata.isSRGB.ContainsKey(meshdata.nicFilledProperties[m][p]) && meshdata.isSRGB[meshdata.nicFilledProperties[m][p]] == true);
+
+                        //textureImporter.sRGBTexture = false;
                         textureImporter.SaveAndReimport();
 
                         meshdata.texturePaths.Add(meshdata.nicFilledProperties[m][p], lPath);

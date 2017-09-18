@@ -11,6 +11,7 @@ namespace Northwind.AtlasGen
 
         public static void UpdateTexture(List<Texture2D> textures, int resultSize, ref RenderTexture resultTexture, ref RenderTexture previewTexture, InterpolatingMethods interpolationMethod, List<IAtlasGenEffect> effects)
         {
+
             if (textures.Count <= 0)
             {
                 return;
@@ -232,7 +233,7 @@ namespace Northwind.AtlasGen
 
         public static Texture2D CopyTexture(Texture2D source)
         {
-            Texture2D texCopy = new Texture2D(source.width, source.height, source.format, source.mipmapCount > 1);
+            Texture2D texCopy = new Texture2D(source.width, source.height, source.format, source.mipmapCount > 1, true);
             texCopy.LoadRawTextureData(source.GetRawTextureData());
             texCopy.Apply();
             return texCopy;
@@ -243,8 +244,8 @@ namespace Northwind.AtlasGen
             Material blitMat = new Material(Shader.Find("Hidden/AtlasGen/BlitToCoord"));
             blitMat.SetVector("_BlitSize", rect);
 
-            RenderTexture lTempRenderTarget = RenderTexture.GetTemporary(texture.width, texture.height, 0);
-            RenderTexture lTempBackBuffer = RenderTexture.GetTemporary(texture.width, texture.height, 0);
+            RenderTexture lTempRenderTarget = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+            RenderTexture lTempBackBuffer = RenderTexture.GetTemporary(texture.width, texture.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
 
             Graphics.Blit(texture, lTempRenderTarget);
 
@@ -267,11 +268,11 @@ namespace Northwind.AtlasGen
             texture.DiscardContents();
             texture.Release();
 
-            texture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32);
+            texture = new RenderTexture(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             texture.DiscardContents();
 
             Material lMat = new Material(Shader.Find("Hidden/AtlasGen/ClearShader"));
-            RenderTexture lTempClear = RenderTexture.GetTemporary(width, height, 0);
+            RenderTexture lTempClear = RenderTexture.GetTemporary(width, height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
             Graphics.Blit(lTempClear, texture, lMat);
             lTempClear.Release();
         }

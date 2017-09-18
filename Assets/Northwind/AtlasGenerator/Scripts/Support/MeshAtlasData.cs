@@ -29,14 +29,19 @@ namespace Northwind.AtlasGen
         public Dictionary<string, Texture>[] observeTextures;
         public Dictionary<string, string>[] oldTexturePaths;
 
+        public Dictionary<string, bool> textureIsNormalMap;
+        public Dictionary<string, float> normalMapStrength;
+
+        public Dictionary<string, bool> oldSRGBValues;
+        public Dictionary<string, bool> isSRGB;
+
         //Process Textures
         public List<int> texSize;
         public bool resized;
         public Dictionary<string, Texture> textureAtlas;
         public Dictionary<string, Texture>[] observedAtlas;
 
-        public Dictionary<string, bool> textureIsNormalMap;
-        public Dictionary<string, float> normalMapStrength;
+        public bool sRGBReturned;
 
         //Process Mesh
         public Mesh[] resultMesh;
